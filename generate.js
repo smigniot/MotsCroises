@@ -16,10 +16,11 @@ const {w:width,h:height,m:grid} = payload
         return acc;
     },{h:0,w:0,m:[]});
 
-console.log("W", words);
-console.log("WxH", width, height);
-console.log("GRID", grid);
+console.log("WORDS", words.slice(0,8).join(" "), "...");
+console.log("WIDTHxHEIGHT", width, height);
+console.log("GRID", [""].concat(grid.map(r=>r.join(""))).join("\n "));
 
+console.time("GADDAG");
 const gaddag = words.reduce((root,word)=>{
     const n = word.length;
     for(let i=1; i<n; i++) {
@@ -35,6 +36,6 @@ const gaddag = words.reduce((root,word)=>{
     }
     return root;
 },{});
+console.timeEnd("GADDAG");
 
-console.log("GADDAG", gaddag);
 
