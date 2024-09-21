@@ -20,4 +20,21 @@ console.log("W", words);
 console.log("WxH", width, height);
 console.log("GRID", grid);
 
+const gaddag = words.reduce((root,word)=>{
+    const n = word.length;
+    for(let i=1; i<n; i++) {
+        const rev = (word.slice(0,i).match(/./gm) || []).reverse().join("");
+        const suffix = word.slice(i);
+        const revxy = rev+(suffix?"+":"")+suffix+"#";
+        revxy.match(/./gm).reduce((current,letter)=>{
+            if(! current[letter]) {
+                current[letter] = {};
+            }
+            return current[letter];
+        },root);
+    }
+    return root;
+},{});
+
+console.log("GADDAG", gaddag);
 
