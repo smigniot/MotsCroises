@@ -1,0 +1,2 @@
+* De la construction de grilles de mots croisés parfaites : http://lestourtereaux.free.fr/papers/index.html
+* Gnome crosswords : https://gitlab.gnome.org/jrb/crosswords/-/tree/master
