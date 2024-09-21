@@ -6,5 +6,5 @@ aspell dump master fr \
     | grep -v '-' \
     | tr -d "^'\`\"" \
     | grep -v '^.$' \
-    | tee >( sort > dictionary.txt )
+    | tee >( sort | uniq > dictionary.txt )
 
