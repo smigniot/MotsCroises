@@ -38,4 +38,8 @@ const gaddag = words.reduce((root,word)=>{
 },{});
 console.timeEnd("GADDAG");
 
+console.time("WRITE");
+fs.writeFileSync("gaddag.json", JSON.stringify(gaddag));
+console.timeEnd("WRITE");
+
 
