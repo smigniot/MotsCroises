@@ -1,0 +1,11 @@
+{
+  "name": "motscroises",
+  "version": "1.0.0",
+  "description": "Mots Croisés",
+  "main": "index.js",
+  "author": "Sébastien Migniot",
+  "license": "MIT",
+  "dependencies": {
+    "dawg-lookup": "^2.2.1"
+  }
+}
