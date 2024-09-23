@@ -63,7 +63,6 @@ console.timeEnd("Time to build the finder");
  * Each SPACE is unused, allowing non-square grids
  */
 const grid = fs.readFileSync(0,'utf8')
-    .trim()
     .split(/[\r\n]/gm)
     .filter(l=>l)
     .map(l=>l.match(/./gm))
@@ -99,6 +98,8 @@ const slots = (function() {
         }
         endofserie()
     }
+    // Probably can do smarter than duplication, *but* this is
+    // both straightforward, readable and maintainable
     for(let y=0; y<h; y++) {
         let current = [];
         function endofserie() {
@@ -122,4 +123,20 @@ const slots = (function() {
     return slots;
 })();
 console.debug("Word slots :", slots.length);
+
+/*
+ * Enumerate all solutions.
+ *
+ * Starting with the inital grid,
+ * - Find the word slot with
+ *   1. At least one known letter
+ *   2. The min cells to fill, but at least one
+ *   3. The max known letters, but at least one
+ * - For this slot, find all candidates, Recurse, Backtrack
+ *   - When no candidate is found : dead-end, backtrack
+ *   - When no slot is found
+ *     - If all cells are filled, yield a solution
+ *     - Else yield a CCL error, 
+ *       https://en.wikipedia.org/wiki/Connected-component_labeling
+ */
 
