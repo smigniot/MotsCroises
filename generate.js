@@ -70,5 +70,56 @@ const grid = fs.readFileSync(0,'utf8')
     ;
 console.debug("Grid", [[]].concat(grid.map(row=>row.join(""))).join("\n"));
 
-
+/*
+ * Detect word slots in the grid
+ *
+ * A word slot is a serie of consecutive non-SPACE, non-DASH two or more cells
+ */
+const slots = (function() {
+    const w = grid.reduce((n,row)=>Math.max(n,row.length),0);
+    const h = grid.length;
+    const slots = [];
+    for(let x=0; x<w; x++) {
+        let current = [];
+        function endofserie() {
+            if(current.length >= 2) {
+                slots.push(current);
+            }
+            current = [];
+        }
+        for(let y=0; y<h; y++) {
+            const cell = grid[y][x];
+            if(cell.match(/[ #]/)) {
+                endofserie();
+            } else if(cell.match(/[A-Z.]/)) {
+                current.push({cell,x,y});
+            } else {
+                console.error(`Grid unknown symbol at ${x},${y}`);
+            }
+        }
+        endofserie()
+    }
+    for(let y=0; y<h; y++) {
+        let current = [];
+        function endofserie() {
+            if(current.length >= 2) {
+                slots.push(current);
+            }
+            current = [];
+        }
+        for(let x=0; x<w; x++) {
+            const cell = grid[y][x];
+            if(cell.match(/[ #]/)) {
+                endofserie();
+            } else if(cell.match(/[A-Z.]/)) {
+                current.push({cell,x,y});
+            } else {
+                console.error(`Grid unknown symbol at ${x},${y}`);
+            }
+        }
+        endofserie()
+    }
+    return slots;
+})();
+console.debug("Word slots :", slots.length);
 
