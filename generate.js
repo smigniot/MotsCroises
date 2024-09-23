@@ -62,12 +62,12 @@ console.timeEnd("Time to build the finder");
  * Each HASH is a black cell
  * Each SPACE is unused, allowing non-square grids
  */
-const grid = fs.readFileSync(0,'utf8')
+const template = fs.readFileSync(0,'utf8')
     .split(/[\r\n]/gm)
     .filter(l=>l)
     .map(l=>l.match(/./gm))
     ;
-console.debug("Grid", [[]].concat(grid.map(row=>row.join(""))).join("\n"));
+console.debug("Grid", [[]].concat(template.map(row=>row.join(""))).join("\n"));
 
 /*
  * Detect word slots in the grid
@@ -75,8 +75,8 @@ console.debug("Grid", [[]].concat(grid.map(row=>row.join(""))).join("\n"));
  * A word slot is a serie of consecutive non-SPACE, non-DASH two or more cells
  */
 const slots = (function() {
-    const w = grid.reduce((n,row)=>Math.max(n,row.length),0);
-    const h = grid.length;
+    const w = template.reduce((n,row)=>Math.max(n,row.length),0);
+    const h = template.length;
     const slots = [];
     for(let x=0; x<w; x++) {
         let current = [];
@@ -87,7 +87,7 @@ const slots = (function() {
             current = [];
         }
         for(let y=0; y<h; y++) {
-            const cell = grid[y][x];
+            const cell = template[y][x];
             if(cell.match(/[ #]/)) {
                 endofserie();
             } else if(cell.match(/[A-Z.]/)) {
@@ -109,7 +109,7 @@ const slots = (function() {
             current = [];
         }
         for(let x=0; x<w; x++) {
-            const cell = grid[y][x];
+            const cell = template[y][x];
             if(cell.match(/[ #]/)) {
                 endofserie();
             } else if(cell.match(/[A-Z.]/)) {
@@ -130,6 +130,8 @@ console.debug("Word slots :", slots.length);
  * Starting with the inital grid,
  * - Find the word slot with
  *   1. At least one known letter
+ *   1.b. FIXME: should prioritize a candidate under recursion
+ *               or dead branches will be tested too many times
  *   2. The min cells to fill, but at least one
  *   3. The max known letters, but at least one
  * - For this slot, find all candidates, Recurse, Backtrack
@@ -139,4 +141,40 @@ console.debug("Word slots :", slots.length);
  *     - Else yield a CCL error, 
  *       https://en.wikipedia.org/wiki/Connected-component_labeling
  */
+function recurse(grid) {
+    const best = slots.reduce((best,slot)=>{
+        // slot is [{x,y}...]
+        const {patterns,known,tofill} = slot.reduce((acc,xy,i)=>{
+            const {x,y} = xy;
+            const value = grid[y][x];
+            if(value == '.') {
+                acc.tofill++;
+            } else {
+                acc.patterns.push(`${value}${i}`);
+                acc.known++;
+            }
+            return acc;
+        },{patterns:[],known:0,tofill:0});
+        if((best==null) || (
+                    ((tofill > 0) && (tofill < best.tofill)) || (
+                        (tofill == best.tofill) &&
+                        (known > best.known)
+                    )
+                )) {
+            best = {patterns,known,tofill,slot};
+        }
+        return best;
+    },null);
+    if(best == null) {
+        console.log("DBG1", best);
+        throw "DBG1";
+    } else {
+        const {patterns, slot} = best;
+        console.log("DBG2", patterns, slot);
+        throw "DBG2";
+        //const candidates =
+    }
+}
+recurse(template);
+
 
