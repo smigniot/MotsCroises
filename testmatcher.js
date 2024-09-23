@@ -27,6 +27,7 @@ console.timeEnd("FINDER");
 // CROISES
 let l = 7;
 let patterns = ["R1","O2","S4"];
+
 console.time("SETS");
 const sets = finder.get(l);
 const candidates = patterns.slice(1).reduce((set,pattern)=>{
@@ -39,3 +40,8 @@ console.time("FULLSCAN");
 const same = words.filter(w=>w.match(/^.RO.S..$/));
 console.timeEnd("FULLSCAN");
 console.log("FULLSCAN.n", same.length);
+
+
+
+
+
