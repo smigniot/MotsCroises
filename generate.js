@@ -123,6 +123,18 @@ const slots = (function() {
     return slots;
 })();
 console.debug("Word slots :", slots.length);
+const slotsat = slots.reduce((bypos,slot)=>{
+    slot.forEach(xy=>{
+        const {x,y} = xy;
+        const repr = `${x},${y}`;
+        if(!bypos.has(repr)) {
+            bypos.set(repr,new Set());
+        }
+        bypos.get(repr).add(slot);
+    });
+    return bypos;
+},new Map());
+//console.debug("SlotsAt", slotsat);
 
 /*
  * Enumerate all solutions.
@@ -140,6 +152,8 @@ console.debug("Word slots :", slots.length);
  *       https://en.wikipedia.org/wiki/Connected-component_labeling
  */
 const DBGAT = [0];
+const EVERY = 250;
+const solution = [false];
 function recurse(grid) {
     const best = slots.reduce((best,slot)=>{
         // slot is [{x,y}...]
@@ -166,8 +180,12 @@ function recurse(grid) {
         return best;
     },null);
     if(best == null) {
+        for(let i=grid.length;i>0;i--) {
+            process.stdout.write("\033[F");
+        }
         console.log(grid.map(row=>row.join("")).join("\n"));
-        throw "DBG1";
+        solution[0] = grid;
+        return;
     } else if(best.tofill == 0) {
         console.log(grid.map(row=>row.join("")).join("\n"));
         throw "DBG2";
@@ -185,22 +203,49 @@ function recurse(grid) {
         [...candidates].forEach(candidate=>{
             // Here be memory
             const before = [];
+            let impactedSlots = new Set();
             slot.forEach((xy,i)=>{
                 const {x,y} = xy;
                 before.push(grid[y][x]);
                 // Modify
                 grid[y][x] = candidate.charAt(i);
+                impactedSlots = impactedSlots.union(
+                    slotsat.get(`${x},${y}`));
             });
-            // FIXME: check that all impacted slots still
-            //        actually can (or do) contain a word
-            if((Date.now()-DBGAT[0])>2000) {
+            if((Date.now()-DBGAT[0]) > EVERY) {
                 for(let i=grid.length;i>0;i--) {
                     process.stdout.write("\033[F");
                 }
                 console.log(grid.map(row=>row.join("")).join("\n"));
                 DBGAT[0] = Date.now();
             }
-            recurse(grid);
+            // Check that all impacted slots still
+            //        actually can (or do) contain a word
+            let isBlocker = false;
+            [...impactedSlots].forEach(slot=>{
+                const patterns = slot.reduce((acc,xy,i)=>{
+                    const {x,y} = xy;
+                    const letter = grid[y][x];
+                    if(letter!='.') {
+                        acc.push(`${letter}${i}`);
+                    }
+                    return acc;
+                },[]);
+                const sets = finder.get(slot.length);
+                const remaining = patterns.slice(1).reduce((set,pattern)=>{
+                        const other = sets.get(pattern) || new Set();
+                        return set.intersection(other);
+                    },sets.get(patterns[0]) || new Set());
+                if(remaining.size == 0) {
+                    isBlocker = true;
+                }
+            });
+            if(!isBlocker) {
+                recurse(grid);
+                if(solution[0]) {
+                    return;
+                }
+            }
             slot.forEach((xy,i)=>{
                 const {x,y} = xy;
                 // Restore
@@ -211,5 +256,6 @@ function recurse(grid) {
 }
 console.log(template.map(row=>row.join("")).join("\n"));
 recurse(template);
+console.log(template.map(row=>row.join("")).join("\n"));
 
 
