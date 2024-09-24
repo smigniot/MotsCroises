@@ -94,10 +94,10 @@ The following regex `/^.RO.S..$/` applied to the dictionary will perfectly compu
 
 To speed up candidate words search the following structure helps :
 * The structure is a [Map](https://en.wikipedia.org/wiki/Associative_array)
-* The key is the word length N
-* The value is another Map
-* Which key is the one-letter regex, i.e. a fixed letter L at a fixed position P
-* And which value is the [Set](https://en.wikipedia.org/wiki/Set_%28abstract_data_type%29) of words of length N which contain the letter L at position P
+	* The key is the word length N
+	* The value is another Map
+		* Which key is the one-letter regex, i.e. a fixed letter L at a fixed position P
+		* And which value is the [Set](https://en.wikipedia.org/wiki/Set_%28abstract_data_type%29) of words of length N which contain the letter L at position P
 ````
 Map
 ├──2->Map
@@ -122,6 +122,7 @@ Map
 ├──...
 ├──25->Map
 │     ├──A........................->Set(ANTICONSTITUTIONNELLEMENT)
+│     ├──...
 ````
 
 Using this structure, finding a 7 letters word matching `.RO.S..` is
