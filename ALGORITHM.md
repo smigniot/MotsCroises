@@ -80,4 +80,61 @@ Then run `cat template.txt | node generate.js` . Hopefully the program will term
 
 # Crosswords generation algorithm
 
+## 1. Build a pattern tree
+
+Statement of the problem : finding word candidates with fixed letters. For instance in french consider the following (part of a) grid :
+
+<table border="1"><tr>
+<td>.</td><td>R</td><td>O</td><td>.</td><td>S</td><td>.</td><td>.</td>
+</tr></table>
+
+The following regex `/^.RO.S..$/` applied to the dictionary will perfectly compute the candidate set, including but not limited to CROISER, CROISES, CROISEZ. The problem is :
+1. Applying a general regex is **slow**, especially compared to walking character by character and compare by hand (in a sufficiently low level language or environment e.g. C or asm)
+2. Scanning the entire dictionary is notoriously **slow**, there are 1755 french words of length 7 with a `R` as a second letter but there are 229353 words in the same dictionary. Let's precompute them.
+
+To speed up candidate words search the following structure helps :
+* The structure is a [Map](https://en.wikipedia.org/wiki/Associative_array)
+* The key is the word length N
+* The value is another Map
+* Which key is the one-letter regex, i.e. a fixed letter L at a fixed position P
+* And which value is the [Set](https://en.wikipedia.org/wiki/Set_%28abstract_data_type%29) of words of length N which contain the letter L at position P
+````
+Map
+├──2->Map
+│     ├──A.->Set(AC,AH,AI,AL,AN,AS,AU,AV)
+│     ├──B.->Set(BD,BU)
+│     ├──C.->Set(...)
+│     ├──...
+│     ├──.Z->Set(DZ,HZ)
+├──3->Map
+│     ├──A..->Set(ACE,...,AXE)
+│     ├──B..->Set(BAC,...,BYE)
+│     ├──...
+├──...
+├──7->Map
+│     ├──...
+│     ├──.R.....->Set(...,CROISER,CROISES,CROISEZ,...)
+│     ├──...
+│     ├──..O....->Set(...,CROISER,CROISES,CROISEZ,...)
+│     ├──...
+│     ├──....S..->Set(...,CROISER,CROISES,CROISEZ,...)
+│     ├──...
+├──...
+├──25->Map
+│     ├──A........................->Set(ANTICONSTITUTIONNELLEMENT)
+````
+
+Using this structure, finding a 7 letters word matching `.RO.S..` is
+* Finding the 3 sets matching `.R.....`, `..O....` and `....S..`
+* Performing the intersection of those sets
+
+This structure allows performant search of words matching patterns - and is a classic memoization
+
+## 2. Enumerate the word slots
+
 TODO
+
+
+
+
+
