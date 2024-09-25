@@ -168,13 +168,20 @@ function recurse(grid) {
             }
             return acc;
         },{patterns:[],known:0,tofill:0});
+        const sets = finder.get(slot.length);
+        const candidates = patterns.slice(1).reduce((set,pattern)=>{
+                const other = sets.get(pattern) || new Set();
+                return set.intersection(other);
+            },sets.get(patterns[0]) || new Set());
         if((known > 0) && (tofill > 0)) {
             if(best == null) {
-                best = {patterns,known,tofill,slot};
+                best = {patterns,known,tofill,slot,candidates};
+	    } else if(candidates.size < best.candidates.size) {
+                best = {patterns,known,tofill,slot,candidates};
             } else if(tofill < best.tofill) {
-                best = {patterns,known,tofill,slot};
-            } else if((tofill == best.tofill) && (known > best.known)) {
-                best = {patterns,known,tofill,slot};
+                best = {patterns,known,tofill,slot,candidates};
+            } else if(known > best.known) {
+                best = {patterns,known,tofill,slot,candidates};
             }
         }
         return best;
@@ -194,12 +201,7 @@ function recurse(grid) {
         console.log("DBG3", best);
         throw "DBG3";
     } else {
-        const {patterns, slot} = best;
-        const sets = finder.get(slot.length);
-        const candidates = patterns.slice(1).reduce((set,pattern)=>{
-                const other = sets.get(pattern) || new Set();
-                return set.intersection(other);
-            },sets.get(patterns[0]));
+        const {patterns, slot,candidates} = best;
         [...candidates].forEach(candidate=>{
             // Here be memory
             const before = [];
