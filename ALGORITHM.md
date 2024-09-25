@@ -133,8 +133,53 @@ This structure allows performant search of words matching patterns - and is a cl
 
 ## 2. Enumerate the word slots
 
-TODO
+In crossword grids, the slots where word are actually placed are defined by
+* Any contiguous serie of non-black cells, of length at least two
+* In this program, it is any serie of non HASH or SPACE of two or more
+	* Thus looking for both DOT or a LETTER
 
+As this program will have to iterate through those slots a lot, let's precompute them - instead of performing this static work every time.
+
+Considering the grid :
+````
+ALPIN.
+R....#
+C#.#..
+H.....
+E...#.
+````
+
+The 13 slots are :
+````
+01  From 0,0 to 5,0 - contains ALPIN.
+02  From 0,1 to 4,1 - contains R....
+03  From 4,2 to 5,2 - contains ..
+04  From 0,3 to 5,3 - contains H.....
+05  From 0,4 to 3,4 - contains E...
+06  From 0,0 to 0,4 - contains ARCHE
+07  From 1,0 to 1,1 - contains L.
+08  From 1,3 to 1,4 - contains ..
+09  From 2,0 to 2,4 - contains P....
+10  From 3,0 to 3,1 - contains I.
+11  From 3,3 to 3,4 - contains ..
+12  From 4,0 to 4,3 - contains N...
+13  From 5,2 to 5,4 - contains ...
+````
+
+If the word `RIMEZ` is tried at slot 02, it creates two impossible situations :
+* slot 09 now contains `PM...`
+* slot 12 now contains `NZ..`
+
+Each time a candidate is tried at a slot, it can be eliminated if it creates a lack of candidates for any of the impacted slot.
+
+## 3. Recursion
+
+Let's state the algorithm like that
+1. Start from the (parsed) template grid
+2. Find a slot containing at least one letter and at least one blank
+3. Iterate all candidates for this slot
+
+TODO
 
 
 
