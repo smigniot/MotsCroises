@@ -137,6 +137,38 @@ const slotsat = slots.reduce((bypos,slot)=>{
 //console.debug("SlotsAt", slotsat);
 
 /*
+ * Compute letter frequency **at** a given position
+ *
+ * The E letter is frequent everywhere, but
+ * the Z letter is rare, except at the end of the word.
+ */
+const byposandletter = words.reduce((acc,word)=>{
+    word.trim().match(/./gm).forEach((letter,position)=>{
+        if(!acc.has(position)) {
+            acc.set(position,new Map());
+        }
+        const ap = acc.get(position);
+        if(!ap.has(letter)) {
+            ap.set(letter,0);
+        }
+        ap.set(letter,ap.get(letter)+1);
+    });
+    return acc;
+},new Map());
+[...byposandletter.keys()].forEach(position=>{
+    const m = byposandletter.get(position);
+    const total = [...m.values()].reduce((a,b)=>a+b,0);
+    [...m.keys()].forEach(letter=>{
+        const percentage = m.get(letter)/total;
+        m.set(letter, percentage);
+    });
+});
+function frequencyScore(word) {
+    // mean of frequency of each letter (at position)
+    // TODO
+}
+
+/*
  * Enumerate all solutions.
  *
  * Starting with the inital grid,
@@ -212,7 +244,9 @@ function recurse(grid) {
         throw "DBG3";
     } else {
         const {patterns, slot,candidates} = best;
-        [...candidates].forEach(candidate=>{
+        const frequentToRare = [...candidates]; 
+        frequentToRare.sort((a,b)=>frequencyScore(b)-frequencyScore(a));
+        frequentToRare.forEach(candidate=>{
             // Here be memory
             const before = [];
             let impactedSlots = new Set();
