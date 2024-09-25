@@ -173,16 +173,26 @@ function recurse(grid) {
                 const other = sets.get(pattern) || new Set();
                 return set.intersection(other);
             },sets.get(patterns[0]) || new Set());
+        let better = false;
         if((known > 0) && (tofill > 0)) {
             if(best == null) {
-                best = {patterns,known,tofill,slot,candidates};
-	    } else if(candidates.size < best.candidates.size) {
-                best = {patterns,known,tofill,slot,candidates};
-            } else if(tofill < best.tofill) {
-                best = {patterns,known,tofill,slot,candidates};
-            } else if(known > best.known) {
-                best = {patterns,known,tofill,slot,candidates};
+                better = true;
+            } else {
+                if(candidates.size < best.candidates.size) {
+                    better = true;
+                } else if(candidates.size == best.candidates.size) {
+                    if(tofill < best.tofill) {
+                        better == true;
+                    } else if(tofill == best.tofill) {
+                        if(known > best.known) {
+                            better = true;
+                        }
+                    }
+                }
             }
+        }
+        if(better) {
+            best = {patterns,known,tofill,slot,candidates};
         }
         return best;
     },null);
