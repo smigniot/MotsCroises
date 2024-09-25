@@ -176,11 +176,25 @@ Each time a candidate is tried at a slot, it can be eliminated if it creates a l
 
 Let's state the algorithm like that
 1. Start from the (parsed) template grid
-2. Find a slot containing at least one letter and at least one blank
-3. Iterate all candidates for this slot
+2. Find the slots containing at least one letter and at least one blank
+3. Choose one of those slots wisely
+	1. The current heuristic is to minimize the blanks and maximize the letters
+    2. In fact we should probably choose the one with the least candidates
+    3. It's a **heuristic** at this point - the goal being to avoid costly branches
+4. Iterate all candidates that can be placed [see NOTE] in this slot
+	1. Store the actual letters in the slot
+	2. Place the candidate in the slot, modifying the grid
+	3. Check every slot containing a modified cell of the grid
+		1. If some word still can be placed [see NOTE] at this slot, skip
+		2. Else it's a dead-end, eliminate the candidate
+	4. If the candidate has not been eliminated, perform a recursion, at step 2
+	5. After recursion, restore the grid by canceling modifications of step 4.2
+5. When no slot has at least one empty cell, it's a solution. Claim victory
 
-TODO
+**_NOTE:_** To iterate the candidate, use the pattern tree described in the previous chapters.
 
+## 4. Heuristic
 
-
+* Today it's the min(spaces) and max(filled)
+* Let's try min(candidates) tomorrow
 
