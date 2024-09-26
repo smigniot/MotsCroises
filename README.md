@@ -7,6 +7,8 @@ This document describes one possible algorithm to generate a filled crossword gr
 * Ensure you are using NodeJS 22 or above
 * From the `Work` directory, run `cat complex.txt | node generate.js`
 
+![Demonstration](Demonstration.gif)
+
 ## The Starting template
 
 A starting template must be provided, containing the following
