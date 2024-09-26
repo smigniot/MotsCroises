@@ -202,6 +202,10 @@ Let's state the algorithm like that
 
 ## 4. Heuristic
 
-* Today it's the min(spaces) and max(filled)
-* Let's try min(candidates) tomorrow
+* Use the slot
+	* With the least candidates
+	* With the minimum cells to fill
+	* With the maximum known letters
+* Sort candidates
+	* By topping those which maximize the probability of finding words in crossing slots
 

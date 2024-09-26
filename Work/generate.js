@@ -122,6 +122,20 @@ const slots = (function() {
     }
     return slots;
 })();
+slots.forEach(slot=>{
+    const w = template.reduce((n,row)=>Math.max(n,row.length),0);
+    const h = template.length;
+    const {xs,ys} = slot.reduce((acc,xy)=>{
+        const {x,y} = xy;
+        acc.xs+=x;
+        acc.ys+=y;
+        return acc;
+    },{xs:0,ys:0});
+    const dx = (xs/slot.length)-w/2;
+    const dy = (ys/slot.length)-h/2;
+    const distance = dx*dx+dy*dy;
+    slot.distance = distance;
+});
 console.debug("Word slots :", slots.length);
 const slotsat = slots.reduce((bypos,slot)=>{
     slot.forEach(xy=>{
@@ -164,17 +178,11 @@ const byposandletter = words.reduce((acc,word)=>{
     });
 });
 function frequencyScore(slot,word) {
-    // mean of frequency of each letter (at position)
-    // TODO
     let sum = 0;
     let total = slot.length;
     for(let i=0; i<total; i++) {
         const {x,y} = slot[i];
         const letter = word.charAt(i);
-        const dbg = slotsat.get(`${x},${y}`);
-        if(!dbg) {
-            console.warn("AARGH", dbg,x,y);
-        }
         const other = [...slotsat.get(`${x},${y}`)].find(other=>other!=slot);
         if(other) {
             const positionincross = other.reduce((acc,xy,j)=>{
@@ -239,7 +247,7 @@ function recurse(grid) {
                     better = true;
                 } else if(candidates.size == best.candidates.size) {
                     if(tofill < best.tofill) {
-                        better == true;
+                        better = true;
                     } else if(tofill == best.tofill) {
                         if(known > best.known) {
                             better = true;
@@ -249,7 +257,7 @@ function recurse(grid) {
             }
         }
         if(better) {
-            best = {patterns,known,tofill,slot,candidates};
+            best = {patterns,known,tofill,slot,candidates}
         }
         return best;
     },null);
