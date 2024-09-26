@@ -163,9 +163,34 @@ const byposandletter = words.reduce((acc,word)=>{
         m.set(letter, percentage);
     });
 });
-function frequencyScore(word) {
+function frequencyScore(slot,word) {
     // mean of frequency of each letter (at position)
     // TODO
+    let sum = 0;
+    let total = slot.length;
+    for(let i=0; i<total; i++) {
+        const {x,y} = slot[i];
+        const letter = word.charAt(i);
+        const dbg = slotsat.get(`${x},${y}`);
+        if(!dbg) {
+            console.warn("AARGH", dbg,x,y);
+        }
+        const other = [...slotsat.get(`${x},${y}`)].find(other=>other!=slot);
+        if(other) {
+            const positionincross = other.reduce((acc,xy,j)=>{
+                if((xy.x == x) && (xy.y == y)) {
+                    return j;
+                }
+                return acc;
+            },-1);
+            if(positionincross != -1) {
+                sum += byposandletter.get(positionincross).get(letter) || 0;
+            } else {
+                console.warn("ERROR in scoring", slot, word, other, letter, i);
+            }
+        }
+    }
+    return sum;
 }
 
 /*
@@ -245,7 +270,8 @@ function recurse(grid) {
     } else {
         const {patterns, slot,candidates} = best;
         const frequentToRare = [...candidates]; 
-        frequentToRare.sort((a,b)=>frequencyScore(b)-frequencyScore(a));
+        frequentToRare.sort((a,b)=>
+            frequencyScore(slot,b)-frequencyScore(slot,a));
         frequentToRare.forEach(candidate=>{
             // Here be memory
             const before = [];
@@ -301,7 +327,10 @@ function recurse(grid) {
     }
 }
 console.log(template.map(row=>row.join("")).join("\n"));
+console.time("Elapsed time");
 recurse(template);
+console.log("Final grid"+((solution[0])?"":" : no solution"));
 console.log(template.map(row=>row.join("")).join("\n"));
+console.timeEnd("Elapsed time");
 
 
