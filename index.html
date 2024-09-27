@@ -9,21 +9,29 @@
     margin: 0px;
     padding: 0px;
    }
+   table.grid td {
+    width: 1rem;
+    height: 1rem;
+   }
+   table.grid td.black {
+    color: transparent;
+    background: black;
+   }
   </style>
   <script type="text/javascript" src="loader.js">
   </script>
  </head>
  <body>
   <main>
-   <input type="text" placeholder="6" id="grid_width" />
-   x
-   <input type="text" placeholder="6" id="grid_height" />
-   <select id="grid_layout">
+   <select id="grid_layout" disabled="disabled">
     <option>-</option>
     <option>5x5</option>
     <option>6x6</option>
+    <option>Cat</option>
+    <option>10x10</option>
     <option>Dog</option>
     <option>15x15</option>
+    <option>American</option>
    </select>
    <div class="grid">
    </div>
