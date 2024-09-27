@@ -19,35 +19,13 @@
         });
 })})();
 
-/*
- * Build a Map<Map<Set>>> finder
- *
- * Key 1 : word length
- * Key 2 : letter and position
- * Value : set of words matching
- *
- * Example : the word APOSTROPHE
- * is of length 10
- * and matches A????????? ?P???????? ... ?????????E
- * 
- * It ends in the 10 sets :
- * finder.get(10).get("A0").has("APOSTROPHE") // true
- * finder.get(10).get("P1").has("APOSTROPHE") // true
- * finder.get(10).get("O2").has("APOSTROPHE") // true
- * ...
- * finder.get(10).get("E9").has("APOSTROPHE") // true
- *
- * Other examples :
- * finder.get(14).get("T13").has("ACCESSOIREMENT") // true
- * finder.get(4).get("N2").has("RING") // true
- */
 function dictionaryReceived(words) {
     const worker = new Worker("worker.js");
     worker.onmessage = ((e)=>{
         switch(e.data.type) {
             case "PREPARED":
                 console.debug("Prepared");
-                // TODO
+                enableEditor();
                 break;
             default:
                 console.warn("UNKOWN MESSAGE", e);
@@ -55,5 +33,33 @@ function dictionaryReceived(words) {
         }
     });
     worker.postMessage({type:"PREPARE", words});
+}
+
+/*
+ * Enable editor
+ *
+ * At this point, the editor is under building
+ * After building, messages can flow to the worker
+ */
+function enableEditor() {
+    const root = document.querySelector(".grid");
+    const wi = document.querySelector("#grid_width");
+    const hi = document.querySelector("#grid_height");
+    const li = document.querySelector("#grid_layout");
+    li.onchange = function() {
+        console.log("LAYOUT", li.value);
+    }
+    wi.onchange = function() {
+        whChanged();
+    }
+    hi.onchange = function() {
+        whChanged();
+    }
+    function whChanged() {
+        const w = (+wi.value) || 6;
+        const h = (+hi.value) || 6;
+        console.log("SIZE", `${w}x${h}`);
+    }
+
 }
 

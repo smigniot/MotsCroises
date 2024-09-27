@@ -13,6 +13,28 @@ onmessage = ((e)=>{
     }
 });
 
+/*
+ * Build a Map<Map<Set>>> finder
+ *
+ * Key 1 : word length
+ * Key 2 : letter and position
+ * Value : set of words matching
+ *
+ * Example : the word APOSTROPHE
+ * is of length 10
+ * and matches A????????? ?P???????? ... ?????????E
+ * 
+ * It ends in the 10 sets :
+ * finder.get(10).get("A0").has("APOSTROPHE") // true
+ * finder.get(10).get("P1").has("APOSTROPHE") // true
+ * finder.get(10).get("O2").has("APOSTROPHE") // true
+ * ...
+ * finder.get(10).get("E9").has("APOSTROPHE") // true
+ *
+ * Other examples :
+ * finder.get(14).get("T13").has("ACCESSOIREMENT") // true
+ * finder.get(4).get("N2").has("RING") // true
+ */
 function prepare(words) {
     const finder = words.reduce((bylength,word)=>{
             const n = word.length;
