@@ -3,6 +3,17 @@
     const select = document.querySelector("#grid_layout");
     select.disabled = "disabled";
 
+    const params = new URLSearchParams(document.location.search);
+    const lang = params.get("lang") || "fr";
+    if(lang == 'en') {
+        [["save", "Save"],
+         ["loadtext", "Load"],
+         ["solve","Solve"]].forEach(pair=>{
+            const [id,text] = pair;
+            document.querySelector("#"+id).textContent = text;
+        });
+    }
+
     /*
      * Read the dictionary
      *
@@ -10,7 +21,7 @@
      */
     console.debug("Loading dictionary");
     document.querySelector("#prog").value = 2;
-    fetch("dict_fr.txt")
+    fetch(`dict_${lang}.txt`)
         .then(r=>r.text())
         .then(dict=>{
             document.querySelector("#prog").value = 3;
