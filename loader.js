@@ -87,7 +87,7 @@ function enableEditor(worker) {
             case "Cat":
                 applyLayout([
                     "##        ##",
-                    "#.#      # #",
+                    "#.#      #.#",
                     "#..#    #..#",
                     "#...####...#",
                     "#..........#",
