@@ -1,6 +1,7 @@
 #!/bin/bash
 
-aspell dump master fr \
+L=${1:-fr}
+aspell dump master $L \
     | tr '[:lower:]' '[:upper:]' \
     | grep -v '-' \
     | grep -v "'" \
@@ -8,5 +9,5 @@ aspell dump master fr \
     | sed "s/['\`\"^]//g" \
     | sort \
     | uniq \
-    > dictionary.txt
+    > dictionary_$L.txt
 

@@ -9,22 +9,57 @@
     margin: 0px;
     padding: 0px;
    }
+   table.grid td {
+    width: 20px;
+    height: 20px;
+   }
+   table.grid td.black input {
+    color: transparent;
+    background: black;
+   }
+   table.grid td.blank input {
+    color: silver;
+   }
+   table.grid td.empty {
+    color: transparent;
+    border: none;
+   }
+   table.grid td input {
+    border: none;
+    margin: 0;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    text-align: center;
+    text-transform: uppercase;
+   }
+   table.grid td input .blank {
+    color:transparent;
+   }
   </style>
   <script type="text/javascript" src="loader.js">
   </script>
  </head>
  <body>
   <main>
-   <input type="text" placeholder="6" id="grid_width" />
-   x
-   <input type="text" placeholder="6" id="grid_height" />
-   <select id="grid_layout">
+   <select id="grid_layout" disabled="disabled">
     <option>-</option>
     <option>5x5</option>
     <option>6x6</option>
+    <option>Cat</option>
+    <option>10x10</option>
     <option>Dog</option>
     <option>15x15</option>
+    <option>American</option>
+    <option>Mouse</option>
    </select>
+   <span id="controls">
+    <button id="save">Sauvegarder</button>
+    <button id="load"><input type="file" 
+        style="display:none"/><span id="loadtext">Charger</span></button>
+    <progress id="prog" min="1" max="4"></progress>
+    <button id="solve" style="display:none">Résoudre</button>
+   </span>
    <div class="grid">
    </div>
   </main>
