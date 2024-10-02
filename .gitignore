@@ -3,3 +3,7 @@
 .*~
 gaddag.json
 node_modules
+*.o
+*.hi
+*.exe
+autofill
