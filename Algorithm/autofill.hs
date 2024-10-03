@@ -10,7 +10,7 @@ main = do
     else let (dictfile, gridfile) = parse defaultConfig args
         in autofill dictfile gridfile
 
--- 
+--
 -- The default configuration, stdin as grid input file
 --
 defaultConfig = ("dictionary.txt", "-")
@@ -32,7 +32,7 @@ parse (dict, grid) (newgrid:xs) = parse (dict, newgrid) xs
 --
 -- 1. Reads every file
 -- 2. Prepares pre-computed material from the dictionary
--- 3. Prepares the graph from the grid 
+-- 3. Prepares the graph from the grid
 -- 4. Runs the actual algorithm
 --
 autofill dictfile gridfile = do
@@ -44,4 +44,29 @@ autofill dictfile gridfile = do
     putStrLn ("Dict = ["++dictfile++"], Grid = ["++gridfile++"]")
     putStrLn ("Dict length = ["++(show (length (lines dictbody)))++"]")
     putStrLn ("Grid = ["++gridbody++"]")
-    
+
+--
+-- Each slot contains
+--
+-- Coordinates x0,y0,x1,y1
+-- A length (abs (x1-x0)) + (abs (y0-y1))
+-- Fixed letters e.g.
+--  E at zero
+--  T at three
+-- Intersecting slots e.g.
+--  at position two, intersects SlotB at position one
+--  at position four, intersects SlotC at position five
+-- The list of candidates satisfying both this slot and intersecting slots
+--  At "compile time", will be refined at runtime
+--
+-- 012 F
+-- 1   A
+-- 2   C
+--     A
+--   F D
+-- ELITE
+--   L
+--   M
+--
+
+
