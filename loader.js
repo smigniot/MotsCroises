@@ -5,7 +5,7 @@
 
     const params = new URLSearchParams(document.location.search);
     const lang = params.get("lang") || "fr";
-    if(lang == 'en') {
+    if((lang == 'en') || (lang.match(/^k[0-9]+$/))) {
         [["save", "Save"],
          ["loadtext", "Load"],
          ["solve","Solve"]].forEach(pair=>{
