@@ -1,4 +1,9 @@
 import System.Environment (getArgs)
+import Data.List (transpose, intercalate)
+import Data.Char (isSpace)
+import qualified Data.Vector as V
+import qualified Data.Set as S
+import qualified Data.Map.Strict as M
 
 --
 -- Run the autofill algorithm
@@ -36,36 +41,79 @@ parse (dict, grid) (newgrid:xs) = parse (dict, newgrid) xs
 -- 4. Runs the actual algorithm
 --
 autofill dictfile gridfile = do
+    putStrLn ("Using dict = ["++dictfile++"], Grid = ["++gridfile++"]")
     dictbody <- readFile dictfile
     gridbody <- if "-" == gridfile then getContents else readFile gridfile
-    -- TODO: Rest, Neo. The answers are coming.
-    
-    putStrLn ("Dict = ["++dictfile++"], Grid = ["++gridfile++"]")
     putStrLn ("Dict length = ["++(show (length (lines dictbody)))++"]")
     putStrLn ("Grid = ["++gridbody++"]")
+    let (v,slots) = readGrid gridbody
+    putStrLn ("Slots = "++(intercalate ", " (map showSlot slots)))
+    let wblbl = classify $ filter (not . null) $ map trim $ lines dictbody
+    let fromJust (Just e) = e
+    let sevene2 = S.size (fromJust (M.lookup (2,'E') (fromJust (M.lookup 7 wblbl))))
+    let tene9 = S.size (fromJust (M.lookup (9,'E') (fromJust (M.lookup 10 wblbl))))
+    putStrLn ("Expect 1370 = " ++ show sevene2)
+    putStrLn ("Expect 6423 = " ++ show tene9)
 
 --
--- A Slot is an ordered list of Cells
+-- Drop space at start and at end
 --
--- A Cell has coordinates. It is assumed the cells are kept in
--- contiguous order in a single direction. Each cell may contain a letter.
--- A cell may point to the crossing slot.
---
--- Considering The following initial and solution grids :
---      .      O
---    F .    F D
---  .L.TE  ELITE
---    .      L  
---    .      M  
---
+trim :: String -> String
+trim = f . f
+   where f = reverse . dropWhile isSpace
 
-data Cell = Cell {
-    cellX :: Int 
-  , cellY :: Int
-  , cellLetter :: Maybe Char
-  , crossingSlot :: Maybe SlotPosition
-}
+--
+-- Print the slot
+--
+showSlot slot = let
+    (x0,y0,_) = head slot
+    (x1,y1,_) = last slot
+    in ("[" ++ (show x0) ++ "," ++ (show y0) ++
+       "->" ++ (show x1) ++ "," ++ (show y1) ++ "]")
 
-type Slot = [Cell]
-type SlotPosition = (Slot, Int)
+--
+-- Read the grid
+--
+-- As a vector of Char
+-- Plus a list of slots
+--
+readGrid txt = let
+    m = map asRow (zip [0..] (lines txt))
+    asRow (y,l) = map (asCell y) (zip [0..] l)
+    asCell y (x, letter) = (x,y,letter)
+    slots = findSlots (m ++ transpose m)
+    v = V.fromList (map V.fromList (lines txt))
+    in (v,slots)
+
+--
+-- A Slot is a contiguous serie of two or more cells
+--
+findSlots [] = []
+findSlots (v:others) = findSlots' [] v ++ findSlots others
+    where   findSlots' accumulated [] = twoOrMore accumulated
+            findSlots' accumulated ((x,y,letter):others) = 
+                if letter `elem` " #"
+                then twoOrMore accumulated ++ findSlots' [] others
+                else findSlots' (accumulated++[(x,y,letter)]) others
+            twoOrMore (a:b:xs) = [(a:b:xs)]
+            twoOrMore _ = []
+
+--
+-- Classify by length by letter at position
+--
+classify words = let
+    wblbl = foldr ingest M.empty words
+    ingest word m = let
+        fromJust (Just e) = e
+        n = length word
+        m' = if M.member n m then m else M.insert n M.empty m
+        byletter = fromJust $ M.lookup n m'
+        byletter' = foldr (ingest' word) byletter (zip [0..] word)
+        ingest' word key@(position,letter) h = let
+            h' = if M.member key h then h else M.insert key S.empty h
+            withKey = fromJust $ M.lookup key h'
+            withKey' = S.insert word withKey
+            in M.insert key withKey' h'
+        in M.insert n byletter' m'
+    in wblbl
 
