@@ -37,36 +37,35 @@ parse (dict, grid) (newgrid:xs) = parse (dict, newgrid) xs
 --
 autofill dictfile gridfile = do
     dictbody <- readFile dictfile
-    gridbody <- if "-" == gridfile
-        then getContents
-        else readFile gridfile
+    gridbody <- if "-" == gridfile then getContents else readFile gridfile
     -- TODO: Rest, Neo. The answers are coming.
+    
     putStrLn ("Dict = ["++dictfile++"], Grid = ["++gridfile++"]")
     putStrLn ("Dict length = ["++(show (length (lines dictbody)))++"]")
     putStrLn ("Grid = ["++gridbody++"]")
 
 --
--- Each slot contains
+-- A Slot is an ordered list of Cells
 --
--- Coordinates x0,y0,x1,y1
--- A length (abs (x1-x0)) + (abs (y0-y1))
--- Fixed letters e.g.
---  E at zero
---  T at three
--- Intersecting slots e.g.
---  at position two, intersects SlotB at position one
---  at position four, intersects SlotC at position five
--- The list of candidates satisfying both this slot and intersecting slots
---  At "compile time", will be refined at runtime
+-- A Cell has coordinates. It is assumed the cells are kept in
+-- contiguous order in a single direction. Each cell may contain a letter.
+-- A cell may point to the crossing slot.
 --
--- 012 F
--- 1   A
--- 2   C
---     A
---   F D
--- ELITE
---   L
---   M
+-- Considering The following initial and solution grids :
+--      .      O
+--    F .    F D
+--  .L.TE  ELITE
+--    .      L  
+--    .      M  
 --
 
+data Cell = Cell {
+    cellX :: Int 
+  , cellY :: Int
+  , cellLetter :: Maybe Char
+  , crossingSlot :: Maybe SlotPosition
+}
+
+type Slot = [Cell]
+type SlotPosition = (Slot, Int)
 
