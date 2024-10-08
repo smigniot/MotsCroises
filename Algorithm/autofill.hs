@@ -48,10 +48,10 @@ autofill dictfile gridfile = do
     putStrLn ("Grid = ["++gridbody++"]")
     let (v,slots) = readGrid gridbody
     putStrLn ("Slots = "++(intercalate ", " (map showSlot slots)))
-    let wblbl = classify $ filter (not . null) $ map trim $ lines dictbody
+    let tree = classify $ filter (not . null) $ map trim $ lines dictbody
     let fromJust (Just e) = e
-    let sevene2 = S.size (fromJust (M.lookup (2,'E') (fromJust (M.lookup 7 wblbl))))
-    let tene9 = S.size (fromJust (M.lookup (9,'E') (fromJust (M.lookup 10 wblbl))))
+    let sevene2 = S.size (fromJust (M.lookup (2,'E') (fromJust (M.lookup 7 tree))))
+    let tene9 = S.size (fromJust (M.lookup (9,'E') (fromJust (M.lookup 10 tree))))
     putStrLn ("Expect 1370 = " ++ show sevene2)
     putStrLn ("Expect 6423 = " ++ show tene9)
 
@@ -88,6 +88,7 @@ readGrid txt = let
 --
 -- A Slot is a contiguous serie of two or more cells
 --
+findSlots :: [[(Int,Int,Char)]] -> [[(Int,Int,Char)]]
 findSlots [] = []
 findSlots (v:others) = findSlots' [] v ++ findSlots others
     where   findSlots' accumulated [] = twoOrMore accumulated
@@ -101,19 +102,20 @@ findSlots (v:others) = findSlots' [] v ++ findSlots others
 --
 -- Classify by length by letter at position
 --
+classify :: [String] -> M.Map Int (M.Map (Int,Char) (S.Set String))
 classify words = let
-    wblbl = foldr ingest M.empty words
-    ingest word m = let
-        fromJust (Just e) = e
+    ingest word tree = let
         n = length word
-        m' = if M.member n m then m else M.insert n M.empty m
-        byletter = fromJust $ M.lookup n m'
-        byletter' = foldr (ingest' word) byletter (zip [0..] word)
-        ingest' word key@(position,letter) h = let
-            h' = if M.member key h then h else M.insert key S.empty h
-            withKey = fromJust $ M.lookup key h'
-            withKey' = S.insert word withKey
-            in M.insert key withKey' h'
-        in M.insert n byletter' m'
-    in wblbl
+        bypos = case M.lookup n tree of
+            Just existing -> existing
+            otherwise -> M.empty
+        bypos' = foldr (ingest' word) bypos (zip [0..] word)
+        in M.insert n bypos' tree
+    ingest' word key bypos = let
+        set = case M.lookup key bypos of
+            Just existing -> existing
+            otherwise -> S.empty
+        set' = S.insert word set
+        in M.insert key set' bypos
+    in foldr ingest M.empty words
 
