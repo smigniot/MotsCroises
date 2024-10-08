@@ -106,15 +106,11 @@ classify :: [String] -> M.Map Int (M.Map (Int,Char) (S.Set String))
 classify words = let
     ingest word tree = let
         n = length word
-        bypos = case M.lookup n tree of
-            Just existing -> existing
-            otherwise -> M.empty
+        bypos = M.findWithDefault M.empty n tree
         bypos' = foldr (ingest' word) bypos (zip [0..] word)
         in M.insert n bypos' tree
     ingest' word key bypos = let
-        set = case M.lookup key bypos of
-            Just existing -> existing
-            otherwise -> S.empty
+        set = M.findWithDefault S.empty key bypos
         set' = S.insert word set
         in M.insert key set' bypos
     in foldr ingest M.empty words
