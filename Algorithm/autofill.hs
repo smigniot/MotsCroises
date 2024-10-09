@@ -53,7 +53,7 @@ autofill dictfile gridfile = do
     putStr "Computing word tree"
     hFlush stdout
     tree `seq` putStrLn " : Done"
-    recurse matrix slots tree
+    recurse matrix slots tree Nothing
 
 --
 -- Drop space at start and at end
@@ -102,6 +102,8 @@ findSlots (v:others) = findSlots' [] v ++ findSlots others
 --
 -- Classify by length by letter at position
 --
+-- The result is a map<length, map<(position,letter), set<words>>>
+--
 classify :: [String] -> M.Map Int (M.Map (Int,Char) (S.Set String))
 classify words = let
     ingest word tree = let
@@ -118,9 +120,24 @@ classify words = let
 --
 -- Recurse until one solution is found
 --
-recurse matrix slots tree = do
-    let fromJust (Just e) = e
-    let sevene2 = S.size (fromJust (M.lookup (2,'E') (fromJust (M.lookup 7 tree))))
-    let tene9 = S.size (fromJust (M.lookup (9,'E') (fromJust (M.lookup 10 tree))))
-    putStrLn ("Expect 1370 = " ++ show sevene2)
-    putStrLn ("Expect 6423 = " ++ show tene9)
+-- matrix is the current state of the grid
+-- slots is a list of non already filled slots
+-- tree is the map<length, map<(position,letter), set<words>>>
+--
+recurse matrix slots tree options = let
+    annotated = map annotate slots
+        where annotate slot = foldr gather ([],0,0,[]) (zip [0..] slot)
+              gather (i,(x,y,_)) (l,known,missing,rules) =
+                let cell = matrix V.! y V.! x
+                    l' = (x,y,cell):l
+                    rules' = (i,cell):rules
+                    in if cell == '.'
+                        then (l',known,missing+1,rules)
+                        else (l',known+1,missing,rules')
+    fromJust (Just e) = e
+    sevene2 = S.size (fromJust (M.lookup (2,'E') (fromJust (M.lookup 7 tree))))
+    tene9 = S.size (fromJust (M.lookup (9,'E') (fromJust (M.lookup 10 tree))))
+    in do
+        putStrLn ("Expect 1370 = " ++ show sevene2)
+        putStrLn ("Expect 6423 = " ++ show tene9)
+
