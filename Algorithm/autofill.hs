@@ -1,3 +1,4 @@
+import System.IO
 import System.Environment (getArgs)
 import Data.List (transpose, intercalate)
 import Data.Char (isSpace)
@@ -46,14 +47,13 @@ autofill dictfile gridfile = do
     gridbody <- if "-" == gridfile then getContents else readFile gridfile
     putStrLn ("Dict length = ["++(show (length (lines dictbody)))++"]")
     putStrLn ("Grid = ["++gridbody++"]")
-    let (v,slots) = readGrid gridbody
+    let (matrix,slots) = readGrid gridbody
     putStrLn ("Slots = "++(intercalate ", " (map showSlot slots)))
     let tree = classify $ filter (not . null) $ map trim $ lines dictbody
-    let fromJust (Just e) = e
-    let sevene2 = S.size (fromJust (M.lookup (2,'E') (fromJust (M.lookup 7 tree))))
-    let tene9 = S.size (fromJust (M.lookup (9,'E') (fromJust (M.lookup 10 tree))))
-    putStrLn ("Expect 1370 = " ++ show sevene2)
-    putStrLn ("Expect 6423 = " ++ show tene9)
+    putStr "Computing word tree"
+    hFlush stdout
+    tree `seq` putStrLn " : Done"
+    recurse matrix slots tree
 
 --
 -- Drop space at start and at end
@@ -115,3 +115,12 @@ classify words = let
         in M.insert key set' bypos
     in foldr ingest M.empty words
 
+--
+-- Recurse until one solution is found
+--
+recurse matrix slots tree = do
+    let fromJust (Just e) = e
+    let sevene2 = S.size (fromJust (M.lookup (2,'E') (fromJust (M.lookup 7 tree))))
+    let tene9 = S.size (fromJust (M.lookup (9,'E') (fromJust (M.lookup 10 tree))))
+    putStrLn ("Expect 1370 = " ++ show sevene2)
+    putStrLn ("Expect 6423 = " ++ show tene9)
