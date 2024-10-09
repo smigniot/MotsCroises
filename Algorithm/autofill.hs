@@ -125,15 +125,16 @@ classify words = let
 -- tree is the map<length, map<(position,letter), set<words>>>
 --
 recurse matrix slots tree options = let
+    annotate slot = foldr gather ([],0,0,[]) (zip [0..] slot)
+    gather (i,(x,y,_)) (l,known,missing,rules) =
+        let cell = matrix V.! y V.! x
+            l' = (x,y,cell):l
+            rules' = (i,cell):rules
+            in if cell == '.'
+                then (l',known,missing+1,rules)
+                else (l',known+1,missing,rules')
+    -- slot becomes ([(x,y,letter)..], known, missing, rules)
     annotated = map annotate slots
-        where annotate slot = foldr gather ([],0,0,[]) (zip [0..] slot)
-              gather (i,(x,y,_)) (l,known,missing,rules) =
-                let cell = matrix V.! y V.! x
-                    l' = (x,y,cell):l
-                    rules' = (i,cell):rules
-                    in if cell == '.'
-                        then (l',known,missing+1,rules)
-                        else (l',known+1,missing,rules')
     fromJust (Just e) = e
     sevene2 = S.size (fromJust (M.lookup (2,'E') (fromJust (M.lookup 7 tree))))
     tene9 = S.size (fromJust (M.lookup (9,'E') (fromJust (M.lookup 10 tree))))
