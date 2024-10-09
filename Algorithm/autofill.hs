@@ -1,6 +1,6 @@
 import System.IO
 import System.Environment (getArgs)
-import Data.List (transpose, intercalate)
+import Data.List (transpose, intercalate, sortBy)
 import Data.Char (isSpace)
 import qualified Data.Vector as V
 import qualified Data.Set as S
@@ -53,7 +53,7 @@ autofill dictfile gridfile = do
     putStr "Computing word tree"
     hFlush stdout
     tree `seq` putStrLn " : Done"
-    recurse matrix slots tree Nothing
+    recurse matrix slots tree
 
 --
 -- Drop space at start and at end
@@ -124,7 +124,7 @@ classify words = let
 -- slots is a list of non already filled slots
 -- tree is the map<length, map<(position,letter), set<words>>>
 --
-recurse matrix slots tree options = let
+recurse matrix slots tree = let
     annotate slot = foldr gather ([],0,0,[]) (zip [0..] slot)
     gather (i,(x,y,_)) (l,known,missing,rules) =
         let cell = matrix V.! y V.! x
@@ -134,11 +134,24 @@ recurse matrix slots tree options = let
                 then (l',known,missing+1,rules)
                 else (l',known+1,missing,rules')
     -- slot becomes ([(x,y,letter)..], known, missing, rules)
-    annotated = map annotate slots
+    annotated = sortBy slotHeuristic $ map annotate slots
+    best = head annotated
     fromJust (Just e) = e
     sevene2 = S.size (fromJust (M.lookup (2,'E') (fromJust (M.lookup 7 tree))))
     tene9 = S.size (fromJust (M.lookup (9,'E') (fromJust (M.lookup 10 tree))))
     in do
         putStrLn ("Expect 1370 = " ++ show sevene2)
         putStrLn ("Expect 6423 = " ++ show tene9)
+        putStrLn ("Chosen = " ++ show best)
+
+slotHeuristic (a,known_a,missing_a,rules_a) (b,known_b,missing_b,rules_b)
+    | missing_a == 0 = GT
+    | missing_b == 0 = LT
+    | missing_a < missing_b = LT
+    | missing_a > missing_b = GT
+    | known_a > known_b = LT
+    | known_a < known_b = GT
+    | otherwise = EQ
+    
+    -- slot becomes ([(x,y,letter)..], known, missing, rules)
 
