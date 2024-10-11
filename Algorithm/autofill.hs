@@ -53,6 +53,7 @@ autofill dictfile gridfile = do
     putStr "Computing word tree"
     hFlush stdout
     tree `seq` putStrLn " : Done"
+    hFlush stdout
     recurse matrix slots tree slotsAt
 
 --
@@ -84,7 +85,7 @@ readGrid txt = let
     slots = findSlots (m ++ transpose m)
     v = V.fromList (map V.fromList (lines txt))
     slotsAt = foldr insertSlot M.empty slots
-        where   insertSlot slot m = foldr (insertAt slot) m slot 
+        where   insertSlot slot m = foldr (insertAt slot) m slot
                 insertAt slot (x,y) m = let
                     l = M.findWithDefault [] (x,y) m
                     in M.insert (x,y) (slot:l) m
@@ -97,7 +98,7 @@ findSlots :: [[(Int,Int,Char)]] -> [[(Int,Int)]]
 findSlots [] = []
 findSlots (v:others) = findSlots' [] v ++ findSlots others
     where   findSlots' accumulated [] = twoOrMore accumulated
-            findSlots' accumulated ((x,y,letter):others) = 
+            findSlots' accumulated ((x,y,letter):others) =
                 if letter `elem` " #"
                 then twoOrMore accumulated ++ findSlots' [] others
                 else findSlots' (accumulated++[(x,y)]) others
@@ -142,15 +143,33 @@ recurse matrix slots tree slotsAt = let
     -- slot becomes (slot, [(x,y,letter)..], known, missing, rules)
     annotated = sortBy slotHeuristic $ map annotate slots
     best@(chosen,state,_,_,patterns) = chooseSlot annotated
+    finished = all (\(_,_,_,missing,_) -> missing == 0) annotated
     candidates = candidatesFor tree (length chosen) patterns
-    fromJust (Just e) = e
-    sevene2 = S.size (fromJust (M.lookup (2,'E') (fromJust (M.lookup 7 tree))))
-    tene9 = S.size (fromJust (M.lookup (9,'E') (fromJust (M.lookup 10 tree))))
+    apply candidate slot = let
+        applyLetter (letter, (x,y)) m =
+            m V.// [(y, (m V.! y) V.// [(x,letter)] )]
+        in foldr applyLetter matrix (zip candidate slot)
+    outcomes :: [V.Vector (V.Vector Char)]
+    outcomes = map (\c -> apply c chosen) (S.toList candidates)
+    -- fromJust (Just e) = e
+    -- sevene2 = S.size (fromJust (M.lookup (2,'E') (fromJust (M.lookup 7 tree))))
+    -- tene9 = S.size (fromJust (M.lookup (9,'E') (fromJust (M.lookup 10 tree))))
     in do
-        putStrLn ("Expect 1370 = " ++ show sevene2)
-        putStrLn ("Expect 6423 = " ++ show tene9)
-        putStrLn ("Chosen = " ++ show best)
-        putStrLn ("Candidates = " ++ show (S.toList candidates))
+        -- putStrLn ("Expect 1370 = " ++ show sevene2)
+        -- putStrLn ("Expect 6423 = " ++ show tene9)
+        -- putStrLn ("Chosen = " ++ show best)
+        -- putStrLn ("Candidates = " ++ show (S.toList candidates))
+        --putStrLn "---"
+        --mapM_ (\v -> putStrLn (V.toList v)) matrix
+        --hFlush stdout
+        if finished
+            then do
+                putStrLn "=== Solution ==="
+                mapM_ (\v -> putStrLn (V.toList v)) matrix
+                hFlush stdout
+                error "Success"
+            else do
+                mapM_ (\out -> recurse out slots tree slotsAt) outcomes
 
 --
 -- Sort slots
