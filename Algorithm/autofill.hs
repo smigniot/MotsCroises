@@ -2,6 +2,8 @@ import System.IO
 import System.Environment (getArgs)
 import Data.List (transpose, intercalate, sortBy)
 import Data.Char (isSpace)
+import Data.Time (getCurrentTime, NominalDiffTime, diffUTCTime)
+import Data.IORef (newIORef, readIORef, atomicWriteIORef)
 import qualified Data.Vector as V
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
@@ -54,7 +56,9 @@ autofill dictfile gridfile = do
     hFlush stdout
     tree `seq` putStrLn " : Done"
     hFlush stdout
-    recurse matrix slots tree slotsAt
+    start <- getCurrentTime
+    lastTime <- newIORef start
+    recurse matrix slots tree slotsAt lastTime
 
 --
 -- Drop space at start and at end
@@ -131,7 +135,7 @@ classify words = let
 -- tree is the map<length, map<(position,letter), set<words>>>
 -- slotsAt is map<(x,y), [slot]>
 --
-recurse matrix slots tree slotsAt = let
+recurse matrix slots tree slotsAt lastTime = let
     annotate slot = foldr gather (slot,[],0,0,[]) (zip [0..] slot)
     gather (i,(x,y)) (original,l,known,missing,rules) =
         let cell = matrix V.! y V.! x
@@ -169,7 +173,18 @@ recurse matrix slots tree slotsAt = let
                 hFlush stdout
                 error "Success"
             else do
-                mapM_ (\out -> recurse out slots tree slotsAt) outcomes
+                now <- getCurrentTime
+                before <- readIORef lastTime
+                let diff = diffUTCTime now before
+                let must = diff > (2.0 :: NominalDiffTime)
+                if must
+                    then do
+                        putStrLn "=== Working ==="
+                        mapM_ (\v -> putStrLn (V.toList v)) matrix
+                        hFlush stdout
+                        atomicWriteIORef lastTime now
+                    else return ()
+                mapM_ (\out -> recurse out slots tree slotsAt lastTime) outcomes
 
 --
 -- Sort slots
