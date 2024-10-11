@@ -47,13 +47,13 @@ autofill dictfile gridfile = do
     gridbody <- if "-" == gridfile then getContents else readFile gridfile
     putStrLn ("Dict length = ["++(show (length (lines dictbody)))++"]")
     putStrLn ("Grid = ["++gridbody++"]")
-    let (matrix,slots) = readGrid gridbody
+    let (matrix,slots,slotsAt) = readGrid gridbody
     putStrLn ("Slots = "++(intercalate ", " (map showSlot slots)))
     let tree = classify $ filter (not . null) $ map trim $ lines dictbody
     putStr "Computing word tree"
     hFlush stdout
     tree `seq` putStrLn " : Done"
-    recurse matrix slots tree
+    recurse matrix slots tree slotsAt
 
 --
 -- Drop space at start and at end
@@ -66,8 +66,8 @@ trim = f . f
 -- Print the slot
 --
 showSlot slot = let
-    (x0,y0,_) = head slot
-    (x1,y1,_) = last slot
+    (x0,y0) = head slot
+    (x1,y1) = last slot
     in ("[" ++ (show x0) ++ "," ++ (show y0) ++
        "->" ++ (show x1) ++ "," ++ (show y1) ++ "]")
 
@@ -83,19 +83,24 @@ readGrid txt = let
     asCell y (x, letter) = (x,y,letter)
     slots = findSlots (m ++ transpose m)
     v = V.fromList (map V.fromList (lines txt))
-    in (v,slots)
+    slotsAt = foldr insertSlot M.empty slots
+        where   insertSlot slot m = foldr (insertAt slot) m slot 
+                insertAt slot (x,y) m = let
+                    l = M.findWithDefault [] (x,y) m
+                    in M.insert (x,y) (slot:l) m
+    in (v,slots,slotsAt)
 
 --
 -- A Slot is a contiguous serie of two or more cells
 --
-findSlots :: [[(Int,Int,Char)]] -> [[(Int,Int,Char)]]
+findSlots :: [[(Int,Int,Char)]] -> [[(Int,Int)]]
 findSlots [] = []
 findSlots (v:others) = findSlots' [] v ++ findSlots others
     where   findSlots' accumulated [] = twoOrMore accumulated
             findSlots' accumulated ((x,y,letter):others) = 
                 if letter `elem` " #"
                 then twoOrMore accumulated ++ findSlots' [] others
-                else findSlots' (accumulated++[(x,y,letter)]) others
+                else findSlots' (accumulated++[(x,y)]) others
             twoOrMore (a:b:xs) = [(a:b:xs)]
             twoOrMore _ = []
 
@@ -123,10 +128,11 @@ classify words = let
 -- matrix is the current state of the grid
 -- slots is a list of non already filled slots
 -- tree is the map<length, map<(position,letter), set<words>>>
+-- slotsAt is map<(x,y), [slot]>
 --
-recurse matrix slots tree = let
+recurse matrix slots tree slotsAt = let
     annotate slot = foldr gather ([],0,0,[]) (zip [0..] slot)
-    gather (i,(x,y,_)) (l,known,missing,rules) =
+    gather (i,(x,y)) (l,known,missing,rules) =
         let cell = matrix V.! y V.! x
             l' = (x,y,cell):l
             rules' = (i,cell):rules
