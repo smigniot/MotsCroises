@@ -131,15 +131,15 @@ classify words = let
 -- slotsAt is map<(x,y), [slot]>
 --
 recurse matrix slots tree slotsAt = let
-    annotate slot = foldr gather ([],0,0,[]) (zip [0..] slot)
-    gather (i,(x,y)) (l,known,missing,rules) =
+    annotate slot = foldr gather (slot,[],0,0,[]) (zip [0..] slot)
+    gather (i,(x,y)) (original,l,known,missing,rules) =
         let cell = matrix V.! y V.! x
             l' = (x,y,cell):l
             rules' = (i,cell):rules
             in if cell == '.'
-                then (l',known,missing+1,rules)
-                else (l',known+1,missing,rules')
-    -- slot becomes ([(x,y,letter)..], known, missing, rules)
+                then (original,l',known,missing+1,rules)
+                else (original,l',known+1,missing,rules')
+    -- slot becomes (slot, [(x,y,letter)..], known, missing, rules)
     annotated = sortBy slotHeuristic $ map annotate slots
     best = head annotated
     fromJust (Just e) = e
@@ -150,7 +150,15 @@ recurse matrix slots tree slotsAt = let
         putStrLn ("Expect 6423 = " ++ show tene9)
         putStrLn ("Chosen = " ++ show best)
 
-slotHeuristic (a,known_a,missing_a,rules_a) (b,known_b,missing_b,rules_b)
+--
+-- Choose a slot
+--
+-- Minimize the number of missing letters, but non-zero
+-- Maximize the number of known letters
+--
+-- XXX: Allow tweaking this behaviour through options
+--
+slotHeuristic (_,_,known_a,missing_a,rules_a) (_,_,known_b,missing_b,rules_b)
     | missing_a == 0 = GT
     | missing_b == 0 = LT
     | missing_a < missing_b = LT
@@ -158,6 +166,5 @@ slotHeuristic (a,known_a,missing_a,rules_a) (b,known_b,missing_b,rules_b)
     | known_a > known_b = LT
     | known_a < known_b = GT
     | otherwise = EQ
-    
-    -- slot becomes ([(x,y,letter)..], known, missing, rules)
+
 
