@@ -114,7 +114,7 @@ classify words = let
     ingest word tree = let
         n = length word
         bypos = M.findWithDefault M.empty n tree
-        bypos' = foldr (ingest' word) bypos (zip [0..] word)
+        bypos' = foldr (ingest' word) bypos ((0,'.'):(zip [0..] word))
         in M.insert n bypos' tree
     ingest' word key bypos = let
         set = M.findWithDefault S.empty key bypos
@@ -141,7 +141,8 @@ recurse matrix slots tree slotsAt = let
                 else (original,l',known+1,missing,rules')
     -- slot becomes (slot, [(x,y,letter)..], known, missing, rules)
     annotated = sortBy slotHeuristic $ map annotate slots
-    best = head annotated
+    best@(chosen,state,_,_,patterns) = chooseSlot annotated
+    candidates = candidatesFor tree (length chosen) patterns
     fromJust (Just e) = e
     sevene2 = S.size (fromJust (M.lookup (2,'E') (fromJust (M.lookup 7 tree))))
     tene9 = S.size (fromJust (M.lookup (9,'E') (fromJust (M.lookup 10 tree))))
@@ -149,9 +150,10 @@ recurse matrix slots tree slotsAt = let
         putStrLn ("Expect 1370 = " ++ show sevene2)
         putStrLn ("Expect 6423 = " ++ show tene9)
         putStrLn ("Chosen = " ++ show best)
+        putStrLn ("Candidates = " ++ show (S.toList candidates))
 
 --
--- Choose a slot
+-- Sort slots
 --
 -- Minimize the number of missing letters, but non-zero
 -- Maximize the number of known letters
@@ -167,4 +169,26 @@ slotHeuristic (_,_,known_a,missing_a,rules_a) (_,_,known_b,missing_b,rules_b)
     | known_a < known_b = GT
     | otherwise = EQ
 
+--
+-- Choose a slot
+--
+-- Take the first, as sorted by the heuristic
+--
+-- XXX: Allow tweaking this behaviour through options
+--
+chooseSlot = head
+
+--
+-- Find candidates for the patterns
+--
+candidatesFor :: M.Map Int (M.Map (Int,Char) (S.Set String))
+                 -> Int
+                 -> [(Int,Char)]
+                 -> S.Set String
+candidatesFor tree n [] = candidatesFor tree n [(0,'.')]
+candidatesFor tree n (p0:ps) = let
+    bypos = M.findWithDefault M.empty n tree
+    first = M.findWithDefault S.empty p0 bypos
+    reduceSet p set = S.intersection set (M.findWithDefault S.empty p bypos)
+    in foldr reduceSet first ps
 
