@@ -48,7 +48,7 @@ autofill dictfile gridfile = do
     dictbody <- readFile dictfile
     gridbody <- if "-" == gridfile then getContents else readFile gridfile
     putStrLn ("Dict length = ["++(show (length (lines dictbody)))++"]")
-    putStrLn ("Grid = ["++gridbody++"]")
+    putStrLn ("Grid =\n"++gridbody)
     let (matrix,slots,slotsAt) = readGrid gridbody
     putStrLn ("Slots = "++(intercalate ", " (map showSlot slots)))
     let tree = classify $ filter (not . null) $ map trim $ lines dictbody
@@ -58,6 +58,8 @@ autofill dictfile gridfile = do
     hFlush stdout
     start <- getCurrentTime
     lastTime <- newIORef start
+    putStrLn "=== Working ==="
+    printMatrix matrix
     recurse matrix slots tree slotsAt lastTime
 
 --
@@ -75,6 +77,19 @@ showSlot slot = let
     (x1,y1) = last slot
     in ("[" ++ (show x0) ++ "," ++ (show y0) ++
        "->" ++ (show x1) ++ "," ++ (show y1) ++ "]")
+
+--
+-- Prints a grid
+--
+printMatrix matrix = do
+    mapM (putStrLn . V.toList) (V.toList matrix)
+    hFlush stdout
+
+--
+-- Clean n lines of the terminal
+--
+cleanScreen n = do
+    mapM_ (\_ -> putStr "\ESC[F") [1..n]
 
 --
 -- Read the grid
@@ -155,36 +170,21 @@ recurse matrix slots tree slotsAt lastTime = let
         in foldr applyLetter matrix (zip candidate slot)
     outcomes :: [V.Vector (V.Vector Char)]
     outcomes = map (\c -> apply c chosen) (S.toList candidates)
-    -- fromJust (Just e) = e
-    -- sevene2 = S.size (fromJust (M.lookup (2,'E') (fromJust (M.lookup 7 tree))))
-    -- tene9 = S.size (fromJust (M.lookup (9,'E') (fromJust (M.lookup 10 tree))))
-    in do
-        -- putStrLn ("Expect 1370 = " ++ show sevene2)
-        -- putStrLn ("Expect 6423 = " ++ show tene9)
-        -- putStrLn ("Chosen = " ++ show best)
-        -- putStrLn ("Candidates = " ++ show (S.toList candidates))
-        --putStrLn "---"
-        --mapM_ (\v -> putStrLn (V.toList v)) matrix
-        --hFlush stdout
-        if finished
-            then do
-                putStrLn "=== Solution ==="
-                mapM_ (\v -> putStrLn (V.toList v)) matrix
-                hFlush stdout
-                error "Success"
-            else do
-                now <- getCurrentTime
-                before <- readIORef lastTime
-                let diff = diffUTCTime now before
-                let must = diff > (2.0 :: NominalDiffTime)
-                if must
-                    then do
-                        putStrLn "=== Working ==="
-                        mapM_ (\v -> putStrLn (V.toList v)) matrix
-                        hFlush stdout
-                        atomicWriteIORef lastTime now
-                    else return ()
-                mapM_ (\out -> recurse out slots tree slotsAt lastTime) outcomes
+    in if finished
+        then do
+            putStrLn "=== Solution ==="
+            printMatrix matrix
+            error "Success" -- FIXME
+        else do
+            now <- getCurrentTime
+            before <- readIORef lastTime
+            if diffUTCTime now before > (0.5 :: NominalDiffTime)
+                then do
+                    cleanScreen (V.length matrix)
+                    printMatrix matrix
+                    atomicWriteIORef lastTime now
+                else return ()
+            mapM_ (\out -> recurse out slots tree slotsAt lastTime) outcomes
 
 --
 -- Sort slots
