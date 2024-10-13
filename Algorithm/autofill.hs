@@ -163,13 +163,14 @@ recurse matrix slots tree slotsAt lastTime = let
     annotated = sortBy slotHeuristic $ map annotate slots
     best@(chosen,state,_,_,patterns) = chooseSlot annotated
     finished = all (\(_,_,_,missing,_) -> missing == 0) annotated
-    candidates = candidatesFor tree (length chosen) patterns
+    possibles = candidatesFor tree (length chosen) patterns
+    candidates = sortBy sortCandidates $ S.toList possibles
     apply candidate slot = let
         applyLetter (letter, (x,y)) m =
             m V.// [(y, (m V.! y) V.// [(x,letter)] )]
         in foldr applyLetter matrix (zip candidate slot)
     outcomes :: [V.Vector (V.Vector Char)]
-    outcomes = map (\c -> apply c chosen) (S.toList candidates)
+    outcomes = map (\c -> apply c chosen) candidates
     in if finished
         then do
             putStrLn "=== Solution ==="
@@ -178,7 +179,7 @@ recurse matrix slots tree slotsAt lastTime = let
         else do
             now <- getCurrentTime
             before <- readIORef lastTime
-            if diffUTCTime now before > (0.5 :: NominalDiffTime)
+            if diffUTCTime now before > (0.250 :: NominalDiffTime)
                 then do
                     cleanScreen (V.length matrix)
                     printMatrix matrix
@@ -225,4 +226,12 @@ candidatesFor tree n (p0:ps) = let
     first = M.findWithDefault S.empty p0 bypos
     reduceSet p set = S.intersection set (M.findWithDefault S.empty p bypos)
     in foldr reduceSet first ps
+
+-- ETAOINSHRDLU absolute test DBG
+sortCandidates a b = let
+    ea = length (filter (== 'e') a)
+    eb = length (filter (== 'e') b)
+    in if ea > eb
+        then LT
+        else GT
 
