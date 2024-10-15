@@ -143,6 +143,10 @@ classify words = let
     in foldr ingest M.empty words
 
 --
+-- 
+--
+
+--
 -- Recurse until one solution is found
 --
 -- matrix is the current state of the grid
