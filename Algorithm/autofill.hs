@@ -88,7 +88,9 @@ showSlot width slot = let
 -- Prints a grid
 --
 printMatrix width matrix = do
-    mapM putStrLn $ chunksOf width $ V.toList matrix
+    putStrLn ("┌" ++ (replicate width '─') ++ "┐")
+    mapM (\s -> putStrLn ("│" ++ s ++ "│")) (chunksOf width $ V.toList matrix)
+    putStrLn ("└" ++ (replicate width '─') ++ "┘")
     hFlush stdout
 
 --
