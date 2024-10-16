@@ -1,6 +1,7 @@
 import System.IO
 import System.Environment (getArgs)
 import Data.List (transpose, intercalate, sortBy)
+import Data.List.Split (chunksOf)
 import Data.Char (isSpace)
 import Data.Time (getCurrentTime, NominalDiffTime, diffUTCTime)
 import Data.IORef (newIORef, readIORef, atomicWriteIORef)
@@ -47,20 +48,17 @@ autofill dictfile gridfile = do
     putStrLn ("Using dict = ["++dictfile++"], Grid = ["++gridfile++"]")
     dictbody <- readFile dictfile
     gridbody <- if "-" == gridfile then getContents else readFile gridfile
-    putStrLn ("Dict length = ["++(show (length (lines dictbody)))++"]")
     putStrLn ("Grid =\n"++gridbody)
-    let (matrix,slots,slotsAt) = readGrid gridbody
-    putStrLn ("Slots = "++(intercalate ", " (map showSlot slots)))
+    let (width,matrix,slots,slotsAt) = readGrid gridbody
+    putStrLn ("Slots = "++(intercalate ", " (map (showSlot width) slots)))
     let tree = classify $ filter (not . null) $ map trim $ lines dictbody
     putStr "Computing word tree"
     hFlush stdout
     tree `seq` putStrLn " : Done"
     hFlush stdout
-    start <- getCurrentTime
-    lastTime <- newIORef start
     putStrLn "=== Working ==="
-    printMatrix matrix
-    recurse matrix slots tree slotsAt lastTime
+    printMatrix width matrix
+    -- TODO try AC-3
 
 --
 -- Drop space at start and at end
@@ -72,17 +70,19 @@ trim = f . f
 --
 -- Print the slot
 --
-showSlot slot = let
-    (x0,y0) = head slot
-    (x1,y1) = last slot
+showSlot width slot = let
+    n0 = head slot
+    (x0,y0) = (n0 `mod` width, n0 `div` width) 
+    n1 = last slot
+    (x1,y1) = (n1 `mod` width, n1 `div` width) 
     in ("[" ++ (show x0) ++ "," ++ (show y0) ++
        "->" ++ (show x1) ++ "," ++ (show y1) ++ "]")
 
 --
 -- Prints a grid
 --
-printMatrix matrix = do
-    mapM (putStrLn . V.toList) (V.toList matrix)
+printMatrix width matrix = do
+    mapM putStrLn $ chunksOf width $ V.toList matrix
     hFlush stdout
 
 --
@@ -97,18 +97,25 @@ cleanScreen n = do
 -- As a vector of Char
 -- Plus a list of slots
 --
+readGrid :: String -> (Int, V.Vector Char, [[Int]], M.Map Int [[Int]])
 readGrid txt = let
     m = map asRow (zip [0..] (lines txt))
     asRow (y,l) = map (asCell y) (zip [0..] l)
     asCell y (x, letter) = (x,y,letter)
     slots = findSlots (m ++ transpose m)
-    v = V.fromList (map V.fromList (lines txt))
-    slotsAt = foldr insertSlot M.empty slots
+    width = foldr max 0 (map length m)
+    height = length m
+    blank = V.replicate (width * height) ' '
+    v = (V.//) blank (map 
+        (\(x,y,letter) -> (y*width+x, letter))
+        (concat m))
+    slots' = map (map (\(x,y) -> (y*width+x))) slots
+    slotsAt = foldr insertSlot M.empty slots'
         where   insertSlot slot m = foldr (insertAt slot) m slot
-                insertAt slot (x,y) m = let
-                    l = M.findWithDefault [] (x,y) m
-                    in M.insert (x,y) (slot:l) m
-    in (v,slots,slotsAt)
+                insertAt slot n m = let
+                    l = M.findWithDefault [] n m
+                    in M.insert n (slot:l) m
+    in (width,v,slots',slotsAt)
 
 --
 -- A Slot is a contiguous serie of two or more cells
@@ -141,101 +148,4 @@ classify words = let
         set' = S.insert word set
         in M.insert key set' bypos
     in foldr ingest M.empty words
-
---
--- 
---
-
---
--- Recurse until one solution is found
---
--- matrix is the current state of the grid
--- slots is a list of non already filled slots
--- tree is the map<length, map<(position,letter), set<words>>>
--- slotsAt is map<(x,y), [slot]>
---
-recurse matrix slots tree slotsAt lastTime = let
-    annotate slot = foldr gather (slot,[],0,0,[]) (zip [0..] slot)
-    gather (i,(x,y)) (original,l,known,missing,rules) =
-        let cell = matrix V.! y V.! x
-            l' = (x,y,cell):l
-            rules' = (i,cell):rules
-            in if cell == '.'
-                then (original,l',known,missing+1,rules)
-                else (original,l',known+1,missing,rules')
-    -- slot becomes (slot, [(x,y,letter)..], known, missing, rules)
-    annotated = sortBy slotHeuristic $ map annotate slots
-    best@(chosen,state,_,_,patterns) = chooseSlot annotated
-    finished = all (\(_,_,_,missing,_) -> missing == 0) annotated
-    possibles = candidatesFor tree (length chosen) patterns
-    candidates = sortBy sortCandidates $ S.toList possibles
-    apply candidate slot = let
-        applyLetter (letter, (x,y)) m =
-            m V.// [(y, (m V.! y) V.// [(x,letter)] )]
-        in foldr applyLetter matrix (zip candidate slot)
-    outcomes :: [V.Vector (V.Vector Char)]
-    outcomes = map (\c -> apply c chosen) candidates
-    in if finished
-        then do
-            putStrLn "=== Solution ==="
-            printMatrix matrix
-            error "Success" -- FIXME
-        else do
-            now <- getCurrentTime
-            before <- readIORef lastTime
-            if diffUTCTime now before > (0.250 :: NominalDiffTime)
-                then do
-                    cleanScreen (V.length matrix)
-                    printMatrix matrix
-                    atomicWriteIORef lastTime now
-                else return ()
-            mapM_ (\out -> recurse out slots tree slotsAt lastTime) outcomes
-
---
--- Sort slots
---
--- Minimize the number of missing letters, but non-zero
--- Maximize the number of known letters
---
--- XXX: Allow tweaking this behaviour through options
---
-slotHeuristic (_,_,known_a,missing_a,rules_a) (_,_,known_b,missing_b,rules_b)
-    | missing_a == 0 = GT
-    | missing_b == 0 = LT
-    | missing_a < missing_b = LT
-    | missing_a > missing_b = GT
-    | known_a > known_b = LT
-    | known_a < known_b = GT
-    | otherwise = EQ
-
---
--- Choose a slot
---
--- Take the first, as sorted by the heuristic
---
--- XXX: Allow tweaking this behaviour through options
---
-chooseSlot = head
-
---
--- Find candidates for the patterns
---
-candidatesFor :: M.Map Int (M.Map (Int,Char) (S.Set String))
-                 -> Int
-                 -> [(Int,Char)]
-                 -> S.Set String
-candidatesFor tree n [] = candidatesFor tree n [(0,'.')]
-candidatesFor tree n (p0:ps) = let
-    bypos = M.findWithDefault M.empty n tree
-    first = M.findWithDefault S.empty p0 bypos
-    reduceSet p set = S.intersection set (M.findWithDefault S.empty p bypos)
-    in foldr reduceSet first ps
-
--- ETAOINSHRDLU absolute test DBG
-sortCandidates a b = let
-    ea = length (filter (== 'e') a)
-    eb = length (filter (== 'e') b)
-    in if ea > eb
-        then LT
-        else GT
 
