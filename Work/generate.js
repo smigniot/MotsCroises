@@ -122,6 +122,16 @@ const slots = (function() {
     }
     return slots;
 })();
+/*
+ * Tentative metrics
+ *
+ * Did not improve the algorithm yet. One could have the intuition that
+ * the farther from the center, the easier a word placement is.
+ * This block computes a distance from the center of the puzzle. Unused.
+ *
+ * In fact the metrics we shall deal with is entanglement,
+ * see ../Studies/slots_crosswords.svg in this project
+ */
 slots.forEach(slot=>{
     const w = template.reduce((n,row)=>Math.max(n,row.length),0);
     const h = template.length;
@@ -136,6 +146,11 @@ slots.forEach(slot=>{
     const distance = dx*dx+dy*dy;
     slot.distance = distance;
 });
+/*
+ * Pre-stores all the slots crossing each single cell
+ *
+ * Memoization prevents recomputation at each time.
+ */
 console.debug("Word slots :", slots.length);
 const slotsat = slots.reduce((bypos,slot)=>{
     slot.forEach(xy=>{
