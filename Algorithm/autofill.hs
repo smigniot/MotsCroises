@@ -65,6 +65,13 @@ autofill dictfile gridfile = do
         putStrLn (" : Done in " ++ duration ++ "s")
     hFlush stdout
     -- TODO try AC-3
+    --  Each slot has a domain definition (by default the words of length n)
+    --  Apply all fixed letters to restrict the domain
+    --  remaining = each pair of (slot1,slot2) or (slot2,slot1) that intersect
+    --  while remaining
+    --   arc(x,y) = remaining.pop()
+    --   arc-reduce arc(x,y)
+    -- see https://en.wikipedia.org/wiki/AC-3_algorithm
 
 --
 -- Drop space at start and at end
