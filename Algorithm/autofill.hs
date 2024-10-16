@@ -4,6 +4,7 @@ import Data.List (transpose, intercalate, sortBy)
 import Data.List.Split (chunksOf)
 import Data.Char (isSpace)
 import Data.Time (getCurrentTime, NominalDiffTime, diffUTCTime)
+import Data.Time.Format (formatTime, defaultTimeLocale)
 import Data.IORef (newIORef, readIORef, atomicWriteIORef)
 import qualified Data.Vector as V
 import qualified Data.Set as S
@@ -48,16 +49,21 @@ autofill dictfile gridfile = do
     putStrLn ("Using dict = ["++dictfile++"], Grid = ["++gridfile++"]")
     dictbody <- readFile dictfile
     gridbody <- if "-" == gridfile then getContents else readFile gridfile
-    putStrLn ("Grid =\n"++gridbody)
-    let (width,matrix,slots,slotsAt) = readGrid gridbody
-    putStrLn ("Slots = "++(intercalate ", " (map (showSlot width) slots)))
+    let (width,height,matrix,slots) = readGrid gridbody
+    putStrLn ("Grid ("++(show width)++"x"++(show height)++") =")
+    printMatrix width matrix
+    putStrLn ("Slots ("++(show $ length slots)++") = "
+        ++(intercalate ", " (map (showSlot width) slots)))
     let tree = classify $ filter (not . null) $ map trim $ lines dictbody
+    a <- getCurrentTime
     putStr "Computing word tree"
     hFlush stdout
-    tree `seq` putStrLn " : Done"
+    tree `seq` do
+        b <- getCurrentTime
+        let d = diffUTCTime b a
+        let duration = formatTime defaultTimeLocale "%S" d
+        putStrLn (" : Done in " ++ duration ++ "s")
     hFlush stdout
-    putStrLn "=== Working ==="
-    printMatrix width matrix
     -- TODO try AC-3
 
 --
@@ -92,30 +98,26 @@ cleanScreen n = do
     mapM_ (\_ -> putStr "\ESC[F") [1..n]
 
 --
--- Read the grid
+-- Read the grid, returning
 --
--- As a vector of Char
--- Plus a list of slots
+-- width and height,
+-- the flattened vector of size width*height
+-- and the list of slots
 --
-readGrid :: String -> (Int, V.Vector Char, [[Int]], M.Map Int [[Int]])
+readGrid :: String -> (Int, Int, V.Vector Char, [[Int]])
 readGrid txt = let
     m = map asRow (zip [0..] (lines txt))
     asRow (y,l) = map (asCell y) (zip [0..] l)
     asCell y (x, letter) = (x,y,letter)
-    slots = findSlots (m ++ transpose m)
+    xySlots = findSlots (m ++ transpose m)
     width = foldr max 0 (map length m)
     height = length m
     blank = V.replicate (width * height) ' '
     v = (V.//) blank (map 
         (\(x,y,letter) -> (y*width+x, letter))
         (concat m))
-    slots' = map (map (\(x,y) -> (y*width+x))) slots
-    slotsAt = foldr insertSlot M.empty slots'
-        where   insertSlot slot m = foldr (insertAt slot) m slot
-                insertAt slot n m = let
-                    l = M.findWithDefault [] n m
-                    in M.insert n (slot:l) m
-    in (width,v,slots',slotsAt)
+    slots = map (map (\(x,y) -> (y*width+x))) xySlots
+    in (width,height,v,slots)
 
 --
 -- A Slot is a contiguous serie of two or more cells
