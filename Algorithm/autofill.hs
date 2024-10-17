@@ -214,6 +214,7 @@ type Entangled = ([Int], S.Set String, [Variable])
 ac3Phase2 :: Matrix -> [Variable] -> Tree -> IO()
 ac3Phase2 m' vars tree = let
     (width, height, matrix) = m'
+    -- Find entanglements
     varsAt = foldr putAt M.empty vars
     putAt var@(positions, _) m = foldr (putAll var) m positions
     putAll var pos m = M.insert pos (var:(M.findWithDefault [] pos m)) m
@@ -222,11 +223,38 @@ ac3Phase2 m' vars tree = let
     addCrossings var@(slot, domain) = (slot, domain, findCrossings var)
     findCrossings var@(slot,_) = filter ((/=) var) ( concat (
         map (\pos -> M.findWithDefault [] pos varsAt) slot ))
+    -- as per https://en.wikipedia.org/wiki/AC-3_algorithm
+    domains = M.fromList vars
+    worklist = concat (map asWorks crossings)
+    asWorks (target,_,others) = map (\(source,_) -> (source,target)) others
+    domains' = ac3Phase3 worklist domains worklist
+    -- Debug trace
     printCrossing (slot, domain, crossings) = let
         t1 = showSlot width slot
         t2 = show $ S.size domain
         t3 = intercalate ", " (map (showSlot width . fst) crossings)
         in putStrLn (t1 ++ " has " ++ t2 ++ " values and crosses " ++ t3)
+    printWork (source, target) = let
+        t1 = showSlot width target
+        t2 = showSlot width source
+        in putStrLn (t1 ++ " is impacted by " ++ t2)
     in do
         mapM_ printCrossing crossings
+        putStrLn "Worklist ="
+        mapM_ printWork worklist
+
+--
+-- Take a work in worklist and reduce the slot domain
+--
+-- A work is (source slot, target slot) where source impacts (crosses) target
+-- Find the position pSrc in source where target intersects
+-- Find the position pTgt in target where source intersects
+-- 
+-- So for each word in target find a word in source which fits
+-- else remove the word from the target domain
+-- If changed, add the works from original where target is here, but not source
+--
+ac3Phase3 original domains [] = domains
+-- TODO : implement me
+ac3Phase3 original domains _ = domains
 
