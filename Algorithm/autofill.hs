@@ -65,14 +65,6 @@ autofill dictfile gridfile = do
         putStrLn (" : Done in " ++ duration ++ "s")
     hFlush stdout
     ac3Phase1 (width,height,matrix) slots tree
-    -- TODO try AC-3
-    --  Each slot has a domain definition (by default the words of length n)
-    --  Apply all fixed letters to restrict the domain
-    --  remaining = each pair of (slot1,slot2) or (slot2,slot1) that intersect
-    --  while remaining
-    --   arc(x,y) = remaining.pop()
-    --   arc-reduce arc(x,y)
-    -- see https://en.wikipedia.org/wiki/AC-3_algorithm
 
 --
 -- Drop space at start and at end
@@ -184,6 +176,8 @@ type Matrix = (Int, Int, V.Vector Char)
 -- Each slot has a fixed length, reduce the domain of values
 -- Each slot may have fixed letters, reduce the domain of values
 --
+-- see https://en.wikipedia.org/wiki/AC-3_algorithm
+--
 ac3Phase1 :: Matrix -> [[Int]] -> Tree -> IO()
 ac3Phase1 m slots tree = let
     (width, height, matrix) = m
@@ -197,19 +191,37 @@ ac3Phase1 m slots tree = let
         domain = foldr (\key -> S.intersection (getset key))
             (getset (head rules)) (tail rules)
         in (slot, domain)
-    printVariable (slot, domain) = let
-        t1 = showSlot width slot
-        t2 = show $ S.size domain
-        in putStrLn (t1 ++ " has " ++ t2 ++ " values")
-    in do
-        mapM_ printVariable variables
-        ac3Phase2 m variables tree
+    in ac3Phase2 m variables tree
 
 --
 -- Hold width, height and flattened vector
 --
 type Variable = ([Int], S.Set String)
 
+--
+-- Apply AC-3 binary constrains
+--
+-- For each pair of crossing slots (a,b), a has an influence on b
+-- and, vice versa, b has an influence on a.
+--
+-- see https://en.wikipedia.org/wiki/AC-3_algorithm
+--
 ac3Phase2 :: Matrix -> [Variable] -> Tree -> IO()
-ac3Phase2 = undefined
+ac3Phase2 m' vars tree = let
+    (width, height, matrix) = m'
+    varsAt = foldr putAt M.empty vars
+    putAt var@(positions, _) m = foldr (putAll var) m positions
+    putAll var pos m = M.insert pos (var:(M.findWithDefault [] pos m)) m
+    crossings = map addCrossings vars
+    addCrossings :: Variable -> ([Int], S.Set String, [Variable])
+    addCrossings var@(slot, domain) = (slot, domain, findCrossings var)
+    findCrossings var@(slot,_) = filter ((/=) var) ( concat (
+        map (\pos -> M.findWithDefault [] pos varsAt) slot ))
+    printCrossing (slot, domain, crossings) = let
+        t1 = showSlot width slot
+        t2 = show $ S.size domain
+        t3 = intercalate ", " (map (showSlot width . fst) crossings)
+        in putStrLn (t1 ++ " has " ++ t2 ++ " values and crosses " ++ t3)
+    in do
+        mapM_ printCrossing crossings
 
