@@ -194,9 +194,14 @@ ac3Phase1 m slots tree = let
     in ac3Phase2 m variables tree
 
 --
--- Hold width, height and flattened vector
+-- Hold list of positions in matrix, and set of fitting words
 --
 type Variable = ([Int], S.Set String)
+
+--
+-- Hold a target Variable along with its source entangled Variables
+--
+type Entangled = ([Int], S.Set String, [Variable])
 
 --
 -- Apply AC-3 binary constrains
@@ -213,7 +218,7 @@ ac3Phase2 m' vars tree = let
     putAt var@(positions, _) m = foldr (putAll var) m positions
     putAll var pos m = M.insert pos (var:(M.findWithDefault [] pos m)) m
     crossings = map addCrossings vars
-    addCrossings :: Variable -> ([Int], S.Set String, [Variable])
+    addCrossings :: Variable -> Entangled
     addCrossings var@(slot, domain) = (slot, domain, findCrossings var)
     findCrossings var@(slot,_) = filter ((/=) var) ( concat (
         map (\pos -> M.findWithDefault [] pos varsAt) slot ))
