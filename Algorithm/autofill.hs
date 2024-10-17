@@ -64,6 +64,7 @@ autofill dictfile gridfile = do
         let duration = formatTime defaultTimeLocale "%S" d
         putStrLn (" : Done in " ++ duration ++ "s")
     hFlush stdout
+    ac3Phase1 (width,height,matrix) slots tree
     -- TODO try AC-3
     --  Each slot has a domain definition (by default the words of length n)
     --  Apply all fixed letters to restrict the domain
@@ -143,11 +144,16 @@ findSlots (v:others) = findSlots' [] v ++ findSlots others
             twoOrMore _ = []
 
 --
+-- Hold the dictionary classifier
+--
+-- A map<length, map<(position,letter), set<words>>>
+--
+type Tree = M.Map Int (M.Map (Int,Char) (S.Set String))
+
+--
 -- Classify by length by letter at position
 --
--- The result is a map<length, map<(position,letter), set<words>>>
---
-classify :: [String] -> M.Map Int (M.Map (Int,Char) (S.Set String))
+classify :: [String] -> Tree
 classify words = let
     ingest word tree = let
         n = length word
@@ -159,4 +165,51 @@ classify words = let
         set' = S.insert word set
         in M.insert key set' bypos
     in foldr ingest M.empty words
+
+--
+-- isNonLetter
+--
+isLetter c
+    | (('A' <= c) && (c <= 'Z')) = True
+    | otherwise = False
+
+--
+-- Hold width, height and flattened vector
+--
+type Matrix = (Int, Int, V.Vector Char)
+
+--
+-- Performs unary constraint of AC-3 algorithm
+--
+-- Each slot has a fixed length, reduce the domain of values
+-- Each slot may have fixed letters, reduce the domain of values
+--
+ac3Phase1 :: Matrix -> [[Int]] -> Tree -> IO()
+ac3Phase1 m slots tree = let
+    (width, height, matrix) = m
+    variables = map constrain slots
+    constrain slot = let
+        bypos = M.findWithDefault M.empty (length slot) tree
+        keys = filter (isLetter . snd) $ zip [0..] $ map ((V.!) matrix) slot
+        rules :: [(Int,Char)]
+        rules = if null keys then [(0,'.')] else keys
+        getset key = M.findWithDefault S.empty key bypos
+        domain = foldr (\key -> S.intersection (getset key))
+            (getset (head rules)) (tail rules)
+        in (slot, domain)
+    printVariable (slot, domain) = let
+        t1 = showSlot width slot
+        t2 = show $ S.size domain
+        in putStrLn (t1 ++ " has " ++ t2 ++ " values")
+    in do
+        mapM_ printVariable variables
+        ac3Phase2 m variables tree
+
+--
+-- Hold width, height and flattened vector
+--
+type Variable = ([Int], S.Set String)
+
+ac3Phase2 :: Matrix -> [Variable] -> Tree -> IO()
+ac3Phase2 = undefined
 
