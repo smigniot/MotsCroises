@@ -242,6 +242,17 @@ ac3Phase2 m' vars tree = let
         mapM_ printCrossing crossings
         putStrLn "Worklist ="
         mapM_ printWork worklist
+        return ()
+
+--
+-- Holds a binary constrinat between 2 slots
+--
+type Work = ([Int], [Int])
+
+--
+-- Holds all variable domains
+--
+type Domains = M.Map [Int] (S.Set String)
 
 --
 -- Take a work in worklist and reduce the slot domain
@@ -254,7 +265,26 @@ ac3Phase2 m' vars tree = let
 -- else remove the word from the target domain
 -- If changed, add the works from original where target is here, but not source
 --
+ac3Phase3 :: [Work] -> Domains -> [Work] -> Domains
 ac3Phase3 original domains [] = domains
 -- TODO : implement me
-ac3Phase3 original domains _ = domains
+ac3Phase3 original domains ((source,target):worklist) = let
+    position = head $ filter (`elem` target) source
+    nSrc = fst . head $ filter ((==) position . snd) (zip [0..] source)
+    nTgt = fst . head $ filter ((==) position . snd) (zip [0..] target)
+    dSrc = M.findWithDefault S.empty source domains
+    dTgt = M.findWithDefault S.empty target domains
+    dTgt' = S.filter fitsSource dTgt
+    fitsSource targetWord = let
+        crossingLetter = targetWord !! nTgt
+        hasLetter sourceWord = let
+            sourceLetter = sourceWord !! nSrc
+            in sourceLetter == crossingLetter
+        in any hasLetter dSrc
+    changed = dTgt /= dTgt'
+    domains' = M.insert target dTgt' domains
+    worklist' = error "Implement me"
+    in if changed
+        then ac3Phase3 original domains' worklist'
+        else ac3Phase3 original domains worklist
 
