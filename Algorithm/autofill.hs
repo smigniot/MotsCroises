@@ -228,7 +228,10 @@ ac3Phase2 m' vars tree = let
     worklist = concat (map asWorks crossings)
     asWorks (target,_,others) = map (\(source,_) -> (source,target)) others
     domains' = ac3Phase3 worklist domains worklist
-    -- Debug trace
+    reduced = map addReduced crossings
+    addReduced (slot, originaldomain, crossings) = let
+        domain = M.findWithDefault originaldomain slot domains'
+        in (slot, originaldomain, domain, crossings)
     printCrossing (slot, domain, crossings) = let
         t1 = showSlot width slot
         t2 = show $ S.size domain
@@ -238,11 +241,15 @@ ac3Phase2 m' vars tree = let
         t1 = showSlot width target
         t2 = showSlot width source
         in putStrLn (t1 ++ " is impacted by " ++ t2)
+    printReduced (slot, originaldomain, domain, crossings) = let
+        t1 = showSlot width slot
+        t2 = show $ S.size originaldomain
+        t3 = show $ S.size domain
+        in putStrLn (t1 ++ " had " ++ t2 ++ " values, now " ++ t3)
     in do
         mapM_ printCrossing crossings
-        putStrLn "Worklist ="
-        mapM_ printWork worklist
-        return ()
+        putStrLn "After AC-3"
+        mapM_ printReduced reduced
 
 --
 -- Holds a binary constrinat between 2 slots
@@ -267,7 +274,6 @@ type Domains = M.Map [Int] (S.Set String)
 --
 ac3Phase3 :: [Work] -> Domains -> [Work] -> Domains
 ac3Phase3 original domains [] = domains
--- TODO : implement me
 ac3Phase3 original domains ((source,target):worklist) = let
     position = head $ filter (`elem` target) source
     nSrc = fst . head $ filter ((==) position . snd) (zip [0..] source)
@@ -283,7 +289,11 @@ ac3Phase3 original domains ((source,target):worklist) = let
         in any hasLetter dSrc
     changed = dTgt /= dTgt'
     domains' = M.insert target dTgt' domains
-    worklist' = error "Implement me"
+    worklist' = (filter impacted original) ++ worklist
+    impacted (a,b)
+        | a == target = b /= source
+        | b == target = a /= source
+        | otherwise = False
     in if changed
         then ac3Phase3 original domains' worklist'
         else ac3Phase3 original domains worklist
