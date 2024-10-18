@@ -8,3 +8,5 @@ node_modules
 *.exe
 autofill
 dist-newstyle
+autofill.hp
+autofill.prof

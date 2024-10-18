@@ -16,14 +16,15 @@ import qualified Data.Map.Strict as M
 main = do
     args <- getArgs
     if ("-h" `elem` args) || ("--help" `elem` args)
-    then putStrLn "Usage: autofill [-d dictionary] [gridfile] [-h|--help]"
-    else let (dictfile, gridfile) = parse defaultConfig args
-        in autofill dictfile gridfile
+    then putStrLn ("Usage: autofill [-d dictionary] [-v] [-q]"
+        ++ "-h|--help] [gridfile]")
+    else let (dictfile, gridfile, verbose, silent) = parse defaultConfig args
+        in autofill dictfile gridfile (verbose, silent)
 
 --
 -- The default configuration, stdin as grid input file
 --
-defaultConfig = ("dictionary.txt", "-")
+defaultConfig = ("dictionary.txt", "-", False, False)
 
 --
 -- Parse command line arguments
@@ -33,9 +34,13 @@ defaultConfig = ("dictionary.txt", "-")
 -- No more arguments
 parse config [] = config
 -- [-d dictionary] Replaces the dictionary file
-parse (dict, grid) ("-d":newdict:xs) = parse (newdict,grid) xs
+parse (dict, grid, verbose, silent) ("-d":newdict:xs) = parse (newdict,grid,verbose, silent) xs
+-- [-v] enable verbose output
+parse (dict, grid, verbose, silent) ("-v":xs) = parse (dict,grid,True, silent) xs
+-- [-q] disable interactive output
+parse (dict, grid, verbose, silent) ("-q":xs) = parse (dict,grid,verbose, True) xs
 -- [gridfile] any additonal argument replaces the grid file
-parse (dict, grid) (newgrid:xs) = parse (dict, newgrid) xs
+parse (dict, grid, verbose, silent) (newgrid:xs) = parse (dict, newgrid, verbose, silent) xs
 
 --
 -- The main function
@@ -45,26 +50,35 @@ parse (dict, grid) (newgrid:xs) = parse (dict, newgrid) xs
 -- 3. Prepares the graph from the grid
 -- 4. Runs the actual algorithm
 --
-autofill dictfile gridfile = do
-    putStrLn ("Using dict = ["++dictfile++"], Grid = ["++gridfile++"]")
+autofill dictfile gridfile (verbose,silent) = do
+    if verbose then putStrLn (
+        "Using dict = ["++dictfile++"], Grid = ["++gridfile++"]"
+        ) else pure ()
     dictbody <- readFile dictfile
     gridbody <- if "-" == gridfile then getContents else readFile gridfile
     let (width,height,matrix,slots) = readGrid gridbody
-    putStrLn ("Grid ("++(show width)++"x"++(show height)++") =")
-    printMatrix width matrix
-    putStrLn ("Slots ("++(show $ length slots)++") = "
-        ++(intercalate ", " (map (showSlot width) slots)))
+    if verbose 
+        then do
+            putStrLn ("Grid ("++(show width)++"x"++(show height)++") =")
+            printMatrix width matrix
+            putStrLn ("Slots ("++(show $ length slots)++") = "
+                ++(intercalate ", " (map (showSlot width) slots)))
+        else pure ()
     let tree = classify $ filter (not . null) $ map trim $ lines dictbody
-    a <- getCurrentTime
-    putStr "Computing word tree"
-    hFlush stdout
     tree `seq` do
-        b <- getCurrentTime
-        let d = diffUTCTime b a
-        let duration = formatTime defaultTimeLocale "%S" d
-        putStrLn (" : Done in " ++ duration ++ "s")
-    hFlush stdout
-    ac3Phase1 (width,height,matrix) slots tree
+        if verbose
+            then do
+                a <- getCurrentTime
+                putStr "Computing word tree"
+                hFlush stdout
+                tree `seq` do
+                    b <- getCurrentTime
+                    let d = diffUTCTime b a
+                    let duration = formatTime defaultTimeLocale "%S" d
+                    putStrLn (" : Done in " ++ duration ++ "s")
+                hFlush stdout
+            else pure ()
+    ac3Phase1 (width,height,matrix) slots tree (verbose,silent)
 
 --
 -- Drop space at start and at end
@@ -178,8 +192,8 @@ type Matrix = (Int, Int, V.Vector Char)
 --
 -- see https://en.wikipedia.org/wiki/AC-3_algorithm
 --
-ac3Phase1 :: Matrix -> [[Int]] -> Tree -> IO()
-ac3Phase1 m slots tree = let
+ac3Phase1 :: Matrix -> [[Int]] -> Tree -> (Bool,Bool) -> IO()
+ac3Phase1 m slots tree options = let
     (width, height, matrix) = m
     variables = map constrain slots
     constrain slot = let
@@ -191,7 +205,7 @@ ac3Phase1 m slots tree = let
         domain = foldr (\key -> S.intersection (getset key))
             (getset (head rules)) (tail rules)
         in (slot, domain)
-    in ac3Phase2 m variables tree
+    in ac3Phase2 m variables tree options
 
 --
 -- Hold list of positions in matrix, and set of fitting words
@@ -211,8 +225,8 @@ type Entangled = ([Int], S.Set String, [Variable])
 --
 -- see https://en.wikipedia.org/wiki/AC-3_algorithm
 --
-ac3Phase2 :: Matrix -> [Variable] -> Tree -> IO()
-ac3Phase2 m' vars tree = let
+ac3Phase2 :: Matrix -> [Variable] -> Tree -> (Bool, Bool) -> IO()
+ac3Phase2 m' vars tree (verbose,silent) = let
     (width, height, matrix) = m'
     -- Find entanglements
     varsAt = foldr putAt M.empty vars
@@ -229,6 +243,12 @@ ac3Phase2 m' vars tree = let
     asWorks (target,_,others) = map (\(source,_) -> (source,target)) others
     domains' = ac3Phase3 worklist domains worklist
     reduced = map addReduced crossings
+    material = sortBy domainSize (
+        map ( \(slot, _, domain, crossings) -> (slot, domain, (
+            map fst crossings ))) reduced )
+    domainSize (_,d1,_) (_,d2,_)
+        | S.size d1 < S.size d2 = LT
+        | otherwise = GT
     addReduced (slot, originaldomain, crossings) = let
         domain = M.findWithDefault originaldomain slot domains'
         in (slot, originaldomain, domain, crossings)
@@ -247,18 +267,22 @@ ac3Phase2 m' vars tree = let
         t3 = show $ S.size domain
         in putStrLn (t1 ++ " had " ++ t2 ++ " values, now " ++ t3)
     in do
-        mapM_ printCrossing crossings
-        putStr "Applying AC-3"
-        hFlush stdout
-        a <- getCurrentTime
-        domains' `seq` do
-            b <- getCurrentTime
-            let d = diffUTCTime b a
-            let duration = formatTime defaultTimeLocale "%S" d
-            putStrLn (" : Done in " ++ duration ++ "s")
-        hFlush stdout
-        putStrLn "After AC-3"
-        mapM_ printReduced reduced
+        domains' `seq` if verbose
+            then do
+                mapM_ printCrossing crossings
+                putStr "Applying AC-3"
+                hFlush stdout
+                a <- getCurrentTime
+                domains' `seq` do
+                    b <- getCurrentTime
+                    let d = diffUTCTime b a
+                    let duration = formatTime defaultTimeLocale "%S" d
+                    putStrLn (" : Done in " ++ duration ++ "s")
+                hFlush stdout
+                putStrLn "After AC-3"
+                mapM_ printReduced reduced
+            else pure ()
+        startBacktrack m' material (verbose,silent)
 
 --
 -- Holds a binary constrinat between 2 slots
@@ -306,4 +330,50 @@ ac3Phase3 original domains ((source,target):worklist) = let
     in if changed
         then ac3Phase3 original domains' worklist'
         else ac3Phase3 original domains worklist
+
+--
+-- Now backtrack
+--
+startBacktrack (width, height, matrix) material (verbose,silent) = do
+    last <- newIORef =<< getCurrentTime
+    solved <- newIORef False
+    if not silent then printMatrix width matrix else pure ()
+    backtrack (width,height,matrix) material (verbose,silent) last solved
+
+threshold = 0.250
+
+backtrack (width,height,matrix) [] (verbose,silent) last solved = do
+    printMatrix width matrix
+    atomicWriteIORef solved True
+    return ()
+
+backtrack (width,height,matrix) (m0:material) (verbose,silent) last solved = do
+    if not silent
+    then do
+        now <- getCurrentTime
+        before <- readIORef last
+        let diff = diffUTCTime now before
+        if diff > threshold
+        then do
+            cleanScreen (height+2)
+            atomicWriteIORef last now
+            printMatrix width matrix
+        else pure ()
+    else pure ()
+    let (slot, candidates, crossings) = m0
+    let actual = filter (isLetter . snd) $ zip [0..] $ map ((V.!) matrix) slot
+    (flip mapM_) candidates ( \candidate -> do
+        let compatible = all (\(i,c) -> (c == (candidate !! i))) actual
+        let matrix' = (V.//) matrix (zip slot candidate)
+        if not compatible
+        then pure ()
+        else do
+            isSolved <- readIORef solved
+            if isSolved
+            then pure ()
+            else do
+                backtrack (width,height,matrix') material (verbose,silent) last solved
+        )
+    
+    
 
