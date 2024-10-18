@@ -248,6 +248,15 @@ ac3Phase2 m' vars tree = let
         in putStrLn (t1 ++ " had " ++ t2 ++ " values, now " ++ t3)
     in do
         mapM_ printCrossing crossings
+        putStr "Applying AC-3"
+        hFlush stdout
+        a <- getCurrentTime
+        domains' `seq` do
+            b <- getCurrentTime
+            let d = diffUTCTime b a
+            let duration = formatTime defaultTimeLocale "%S" d
+            putStrLn (" : Done in " ++ duration ++ "s")
+        hFlush stdout
         putStrLn "After AC-3"
         mapM_ printReduced reduced
 
