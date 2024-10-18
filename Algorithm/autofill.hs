@@ -16,15 +16,16 @@ import qualified Data.Map.Strict as M
 main = do
     args <- getArgs
     if ("-h" `elem` args) || ("--help" `elem` args)
-    then putStrLn ("Usage: autofill [-d dictionary] [-v] [-q]"
+    then putStrLn ("Usage: autofill [-d dictionary] [-b] [-v] [-q]"
         ++ "-h|--help] [gridfile]")
-    else let (dictfile, gridfile, verbose, silent) = parse defaultConfig args
-        in autofill dictfile gridfile (verbose, silent)
+    else let (dictfile, gridfile, verbose, silent, bypassac3) = (
+                parse defaultConfig args)
+         in autofill dictfile gridfile (verbose, silent, bypassac3)
 
 --
 -- The default configuration, stdin as grid input file
 --
-defaultConfig = ("dictionary.txt", "-", False, False)
+defaultConfig = ("dictionary.txt", "-", False, False, False)
 
 --
 -- Parse command line arguments
@@ -34,13 +35,19 @@ defaultConfig = ("dictionary.txt", "-", False, False)
 -- No more arguments
 parse config [] = config
 -- [-d dictionary] Replaces the dictionary file
-parse (dict, grid, verbose, silent) ("-d":newdict:xs) = parse (newdict,grid,verbose, silent) xs
+parse (dict, grid, verbose, silent, bypassac3) ("-d":newdict:xs) =
+    parse (newdict,grid,verbose, silent, bypassac3) xs
 -- [-v] enable verbose output
-parse (dict, grid, verbose, silent) ("-v":xs) = parse (dict,grid,True, silent) xs
+parse (dict, grid, verbose, silent, bypassac3) ("-v":xs) =
+    parse (dict,grid,True, silent, bypassac3) xs
 -- [-q] disable interactive output
-parse (dict, grid, verbose, silent) ("-q":xs) = parse (dict,grid,verbose, True) xs
+parse (dict, grid, verbose, silent, bypassac3) ("-q":xs) =
+    parse (dict,grid,verbose, True, bypassac3) xs
+parse (dict, grid, verbose, silent, bypassac3) ("-b":xs) =
+    parse (dict,grid,verbose, silent, True) xs
 -- [gridfile] any additonal argument replaces the grid file
-parse (dict, grid, verbose, silent) (newgrid:xs) = parse (dict, newgrid, verbose, silent) xs
+parse (dict, grid, verbose, silent, bypassac3) (newgrid:xs) =
+    parse (dict, newgrid, verbose, silent, bypassac3) xs
 
 --
 -- The main function
@@ -50,7 +57,7 @@ parse (dict, grid, verbose, silent) (newgrid:xs) = parse (dict, newgrid, verbose
 -- 3. Prepares the graph from the grid
 -- 4. Runs the actual algorithm
 --
-autofill dictfile gridfile (verbose,silent) = do
+autofill dictfile gridfile (verbose,silent,bypassac3) = do
     if verbose then putStrLn (
         "Using dict = ["++dictfile++"], Grid = ["++gridfile++"]"
         ) else pure ()
@@ -78,7 +85,7 @@ autofill dictfile gridfile (verbose,silent) = do
                     putStrLn (" : Done in " ++ duration ++ "s")
                 hFlush stdout
             else pure ()
-    ac3Phase1 (width,height,matrix) slots tree (verbose,silent)
+    ac3Phase1 (width,height,matrix) slots tree (verbose,silent,bypassac3)
 
 --
 -- Drop space at start and at end
@@ -192,7 +199,7 @@ type Matrix = (Int, Int, V.Vector Char)
 --
 -- see https://en.wikipedia.org/wiki/AC-3_algorithm
 --
-ac3Phase1 :: Matrix -> [[Int]] -> Tree -> (Bool,Bool) -> IO()
+ac3Phase1 :: Matrix -> [[Int]] -> Tree -> (Bool,Bool,Bool) -> IO()
 ac3Phase1 m slots tree options = let
     (width, height, matrix) = m
     variables = map constrain slots
@@ -225,8 +232,8 @@ type Entangled = ([Int], S.Set String, [Variable])
 --
 -- see https://en.wikipedia.org/wiki/AC-3_algorithm
 --
-ac3Phase2 :: Matrix -> [Variable] -> Tree -> (Bool, Bool) -> IO()
-ac3Phase2 m' vars tree (verbose,silent) = let
+ac3Phase2 :: Matrix -> [Variable] -> Tree -> (Bool, Bool, Bool) -> IO()
+ac3Phase2 m' vars tree (verbose,silent,bypassac3) = let
     (width, height, matrix) = m'
     -- Find entanglements
     varsAt = foldr putAt M.empty vars
@@ -241,7 +248,10 @@ ac3Phase2 m' vars tree (verbose,silent) = let
     domains = M.fromList vars
     worklist = concat (map asWorks crossings)
     asWorks (target,_,others) = map (\(source,_) -> (source,target)) others
-    domains' = ac3Phase3 worklist domains worklist
+    -- TODO: add option to bypass AC-3
+    domains' = if bypassac3
+        then domains
+        else ac3Phase3 worklist domains worklist
     reduced = map addReduced crossings
     material = sortBy domainSize (
         map ( \(slot, _, domain, crossings) -> (slot, S.toList domain, (
