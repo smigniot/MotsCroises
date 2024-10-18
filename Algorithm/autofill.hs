@@ -17,15 +17,25 @@ main = do
     args <- getArgs
     if ("-h" `elem` args) || ("--help" `elem` args)
     then putStrLn ("Usage: autofill [-d dictionary] [-b] [-v] [-q]"
-        ++ "-h|--help] [gridfile]")
-    else let (dictfile, gridfile, verbose, silent, bypassac3) = (
+        ++ "[-n] [-h|--help] [gridfile]")
+    else let (Config dictfile gridfile verbose silent bypassac3 nosort) = (
                 parse defaultConfig args)
-         in autofill dictfile gridfile (verbose, silent, bypassac3)
+         in autofill dictfile gridfile (verbose, silent, bypassac3, nosort)
 
 --
 -- The default configuration, stdin as grid input file
 --
-defaultConfig = ("dictionary.txt", "-", False, False, False)
+data Config = Config {
+    dictionaryConfig  :: String
+  , gridConfig        :: String
+  , verboseConfig     :: Bool
+  , silentConfig      :: Bool
+  , bypassac3Config   :: Bool
+  , nosortConfig      :: Bool
+}
+
+defaultConfig = Config "dictionary.txt" "-" False False False False
+
 
 --
 -- Parse command line arguments
@@ -35,19 +45,17 @@ defaultConfig = ("dictionary.txt", "-", False, False, False)
 -- No more arguments
 parse config [] = config
 -- [-d dictionary] Replaces the dictionary file
-parse (dict, grid, verbose, silent, bypassac3) ("-d":newdict:xs) =
-    parse (newdict,grid,verbose, silent, bypassac3) xs
+parse config ("-d":newdict:xs) = parse (config {dictionaryConfig = newdict}) xs
 -- [-v] enable verbose output
-parse (dict, grid, verbose, silent, bypassac3) ("-v":xs) =
-    parse (dict,grid,True, silent, bypassac3) xs
+parse config ("-v":xs) = parse (config {verboseConfig = True}) xs
 -- [-q] disable interactive output
-parse (dict, grid, verbose, silent, bypassac3) ("-q":xs) =
-    parse (dict,grid,verbose, True, bypassac3) xs
-parse (dict, grid, verbose, silent, bypassac3) ("-b":xs) =
-    parse (dict,grid,verbose, silent, True) xs
+parse config ("-q":xs) = parse (config {silentConfig = True}) xs
+-- [-b] disable the AC-3 algorithm
+parse config ("-b":xs) = parse (config {bypassac3Config = True}) xs
+-- [-n] disable the AC-3 algorithm
+parse config ("-n":xs) = parse (config {nosortConfig = True}) xs
 -- [gridfile] any additonal argument replaces the grid file
-parse (dict, grid, verbose, silent, bypassac3) (newgrid:xs) =
-    parse (dict, newgrid, verbose, silent, bypassac3) xs
+parse config (newgrid:xs) = parse (config {gridConfig = newgrid}) xs
 
 --
 -- The main function
@@ -57,7 +65,7 @@ parse (dict, grid, verbose, silent, bypassac3) (newgrid:xs) =
 -- 3. Prepares the graph from the grid
 -- 4. Runs the actual algorithm
 --
-autofill dictfile gridfile (verbose,silent,bypassac3) = do
+autofill dictfile gridfile (verbose,silent,bypassac3,nosort) = do
     if verbose then putStrLn (
         "Using dict = ["++dictfile++"], Grid = ["++gridfile++"]"
         ) else pure ()
@@ -87,7 +95,7 @@ autofill dictfile gridfile (verbose,silent,bypassac3) = do
                     putStrLn (" : Done in " ++ duration ++ "s")
                 hFlush stdout
             else pure ()
-    ac3Phase1 (width,height,matrix) slots tree (verbose,silent,bypassac3) frequencies
+    ac3Phase1 (width,height,matrix) slots tree (verbose,silent,bypassac3, nosort) frequencies
 
 type Frequencies = M.Map (Char, Int, Int) Float
 
@@ -220,7 +228,7 @@ type Matrix = (Int, Int, V.Vector Char)
 --
 -- see https://en.wikipedia.org/wiki/AC-3_algorithm
 --
-ac3Phase1 :: Matrix -> [[Int]] -> Tree -> (Bool,Bool,Bool) -> Frequencies -> IO()
+ac3Phase1 :: Matrix -> [[Int]] -> Tree -> (Bool,Bool,Bool,Bool) -> Frequencies -> IO()
 ac3Phase1 m slots tree options frequencies = let
     (width, height, matrix) = m
     variables = map constrain slots
@@ -253,8 +261,8 @@ type Entangled = ([Int], S.Set String, [Variable])
 --
 -- see https://en.wikipedia.org/wiki/AC-3_algorithm
 --
-ac3Phase2 :: Matrix -> [Variable] -> Tree -> (Bool, Bool, Bool) -> Frequencies -> IO()
-ac3Phase2 m' vars tree (verbose,silent,bypassac3) frequencies = let
+ac3Phase2 :: Matrix -> [Variable] -> Tree -> (Bool, Bool, Bool, Bool) -> Frequencies -> IO()
+ac3Phase2 m' vars tree (verbose,silent,bypassac3,nosort) frequencies = let
     (width, height, matrix) = m'
     -- Find entanglements
     varsAt = foldr putAt M.empty vars
@@ -312,7 +320,7 @@ ac3Phase2 m' vars tree (verbose,silent,bypassac3) frequencies = let
                 putStrLn "After AC-3"
                 mapM_ printReduced reduced
             else pure ()
-        startBacktrack m' material (verbose,silent) frequencies
+        startBacktrack m' material (verbose,silent,nosort) frequencies
 
 --
 -- Holds a binary constrinat between 2 slots
@@ -367,7 +375,7 @@ threshold = 0.250
 -- TODO: add options to tune the heuristics
 --
 naiveChooseSlot material (width,height,matrix) = head material
-naiveCandidateSort candidates (width,height,matrix) = candidates
+naiveCandidateSort frequencies candidates (width,height,matrix) (slot, _, crossings) = candidates
 
 betterChooseSlot material (width,height,matrix) = let
     heuristic a@(slota,canda,crossa) b@(slotb,candb,crossb) = let
@@ -413,11 +421,14 @@ betterCandidateSort frequencies candidates (width,height,matrix) (slot, _, cross
 --
 -- Now backtrack
 --
-startBacktrack (width,height,matrix) material (verbose,silent) frequencies = do
+startBacktrack (width,height,matrix) material (verbose,silent,nosort) frequencies = do
     last <- newIORef =<< getCurrentTime
     solved <- newIORef False
+    let sortFunc = if nosort
+        then naiveCandidateSort frequencies
+        else betterCandidateSort frequencies
     if not silent then printMatrix width matrix else pure ()
-    backtrack (width,height,matrix) material (verbose,silent) last solved betterChooseSlot (betterCandidateSort frequencies)
+    backtrack (width,height,matrix) material (verbose,silent) last solved betterChooseSlot sortFunc
 
 backtrack (width,height,matrix) [] (verbose,silent) last solved chooseSlot candidateSort = do
     printMatrix width matrix
