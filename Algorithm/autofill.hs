@@ -244,10 +244,10 @@ ac3Phase2 m' vars tree (verbose,silent) = let
     domains' = ac3Phase3 worklist domains worklist
     reduced = map addReduced crossings
     material = sortBy domainSize (
-        map ( \(slot, _, domain, crossings) -> (slot, domain, (
+        map ( \(slot, _, domain, crossings) -> (slot, S.toList domain, (
             map fst crossings ))) reduced )
     domainSize (_,d1,_) (_,d2,_)
-        | S.size d1 < S.size d2 = LT
+        | length d1 < length d2 = LT
         | otherwise = GT
     addReduced (slot, originaldomain, crossings) = let
         domain = M.findWithDefault originaldomain slot domains'
@@ -331,6 +331,39 @@ ac3Phase3 original domains ((source,target):worklist) = let
         then ac3Phase3 original domains' worklist'
         else ac3Phase3 original domains worklist
 
+threshold = 0.250
+
+--
+-- TODO: add options to tune the heuristics
+--
+naiveChooseSlot material (width,height,matrix) = head material
+naiveCandidateSort candidates (width,height,matrix) = candidates
+
+betterChooseSlot material (width,height,matrix) = let
+    heuristic a@(slota,canda,crossa) b@(slotb,candb,crossb) = let
+        worda = map ((V.!) matrix) slota
+        wordb = map ((V.!) matrix) slotb
+        knowna = length $ filter isLetter worda
+        knownb = length $ filter isLetter wordb
+        la = length worda
+        lb = length wordb
+        unknowna = la-knowna
+        unknownb = lb-knownb
+        ca = length crossa
+        cb = length crossb
+        result
+            | knowna > knownb = LT
+            | knowna < knownb = GT
+            | (length canda) < (length candb) = LT
+            | (length canda) > (length candb) = GT
+            | unknowna < unknownb = LT
+            | unknowna > unknownb = GT
+            | ca > cb = LT
+            | ca < cb = GT
+            | otherwise = EQ
+        in result
+    in head $ sortBy heuristic material
+
 --
 -- Now backtrack
 --
@@ -338,16 +371,15 @@ startBacktrack (width, height, matrix) material (verbose,silent) = do
     last <- newIORef =<< getCurrentTime
     solved <- newIORef False
     if not silent then printMatrix width matrix else pure ()
-    backtrack (width,height,matrix) material (verbose,silent) last solved
+    -- backtrack (width,height,matrix) material (verbose,silent) last solved naiveChooseSlot naiveCandidateSort
+    backtrack (width,height,matrix) material (verbose,silent) last solved betterChooseSlot naiveCandidateSort
 
-threshold = 0.250
-
-backtrack (width,height,matrix) [] (verbose,silent) last solved = do
+backtrack (width,height,matrix) [] (verbose,silent) last solved chooseSlot candidateSort = do
     printMatrix width matrix
     atomicWriteIORef solved True
     return ()
 
-backtrack (width,height,matrix) (m0:material) (verbose,silent) last solved = do
+backtrack (width,height,matrix) material (verbose,silent) last solved chooseSlot candidateSort = do
     if not silent
     then do
         now <- getCurrentTime
@@ -360,20 +392,33 @@ backtrack (width,height,matrix) (m0:material) (verbose,silent) last solved = do
             printMatrix width matrix
         else pure ()
     else pure ()
+    let m0 = chooseSlot material (width,height,matrix)
+    let material' = filter ((/=) m0) material
     let (slot, candidates, crossings) = m0
     let actual = filter (isLetter . snd) $ zip [0..] $ map ((V.!) matrix) slot
-    (flip mapM_) candidates ( \candidate -> do
+    let candidates' = candidateSort candidates (width,height,matrix)
+    (flip mapM_) candidates' ( \candidate -> do
         let compatible = all (\(i,c) -> (c == (candidate !! i))) actual
         let matrix' = (V.//) matrix (zip slot candidate)
-        if not compatible
+        let blocker = any (hasNoRemaining material (width,height,matrix')) crossings
+        if (not compatible) || blocker
         then pure ()
         else do
             isSolved <- readIORef solved
             if isSolved
             then pure ()
             else do
-                backtrack (width,height,matrix') material (verbose,silent) last solved
+                backtrack (width,height,matrix') (material') (verbose,silent) last solved chooseSlot candidateSort
         )
     
-    
+hasNoRemaining :: [([Int],[String],[[Int]])] -> (Int,Int,V.Vector Char) -> [Int] -> Bool
+hasNoRemaining material (width,height,matrix) slot = let
+    found = filter isSlot material
+    (_,candidates,_) = head found
+    isSlot (a,_,_) = a == slot
+    actual = filter (isLetter . snd) $ zip [0..] $ map ((V.!) matrix) slot
+    hasone = any isCompatible candidates
+    isCompatible candidate = all (\(i,c) -> (c == (candidate !! i))) actual
+    in ((not . null) found) && (not hasone)
+
 
