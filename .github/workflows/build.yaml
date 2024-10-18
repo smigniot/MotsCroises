@@ -28,7 +28,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up GHC ${{ matrix.ghc-version }}
-        working-directory: Algorithm
         uses: haskell-actions/setup@v2
         id: setup
         with:
@@ -38,13 +37,12 @@ jobs:
           cabal-update: true
 
       - name: Configure the build
-        working-directory: Algorithm
         run: |
           cabal configure --disable-documentation
           cabal build all --dry-run
+        working-directory: Algorithm
 
       - name: Restore cached dependencies
-        working-directory: Algorithm
         uses: actions/cache/restore@v4
         id: cache
         env:
@@ -55,12 +53,11 @@ jobs:
           restore-keys: ${{ env.key }}-
 
       - name: Install dependencies
-        working-directory: Algorithm
         if: steps.cache.outputs.cache-hit != 'true'
         run: cabal build all --only-dependencies
+        working-directory: Algorithm
 
       - name: Save cached dependencies
-        working-directory: Algorithm
         uses: actions/cache/save@v4
         if: steps.cache.outputs.cache-hit != 'true'
         with:
@@ -68,6 +65,6 @@ jobs:
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
       - name: Build
-        working-directory: Algorithm
         run: cabal build all
+        working-directory: Algorithm
 
