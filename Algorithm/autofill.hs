@@ -71,7 +71,9 @@ autofill dictfile gridfile (verbose,silent,bypassac3) = do
             putStrLn ("Slots ("++(show $ length slots)++") = "
                 ++(intercalate ", " (map (showSlot width) slots)))
         else pure ()
-    let tree = classify $ filter (not . null) $ map trim $ lines dictbody
+    let dict = filter (not . null) $ map trim $ lines dictbody
+    let tree = classify dict
+    let frequencies = computeFrequencies dict
     tree `seq` do
         if verbose
             then do
@@ -85,7 +87,26 @@ autofill dictfile gridfile (verbose,silent,bypassac3) = do
                     putStrLn (" : Done in " ++ duration ++ "s")
                 hFlush stdout
             else pure ()
-    ac3Phase1 (width,height,matrix) slots tree (verbose,silent,bypassac3)
+    ac3Phase1 (width,height,matrix) slots tree (verbose,silent,bypassac3) frequencies
+
+type Frequencies = M.Map (Char, Int, Int) Float
+
+computeFrequencies :: [String] -> Frequencies
+computeFrequencies dict = let
+    counts = foldr ingestword M.empty dict
+    ingestword word m = foldr (ingestletter (length word)) m (zip [0..] word)
+    ingestletter size (position, letter) m = let
+        bysize = M.findWithDefault M.empty size m
+        bypos = M.findWithDefault M.empty position bysize
+        count = M.findWithDefault 0 letter bypos
+        in M.insert size (M.insert position (M.insert letter (count+1) bypos) bysize) m
+    result = M.fromList (concat (map normalize (M.toList counts)))
+    normalize (size,bysize) = concat (map (normalize' size) (M.toList bysize))
+    normalize' size (pos,bypos) = let
+        total = sum $ M.elems bypos
+        bypos' = map (\(letter,n) -> ((letter,pos,size), (fromIntegral n) / (fromIntegral total))) $ M.toList bypos
+        in bypos'
+    in result
 
 --
 -- Drop space at start and at end
@@ -199,8 +220,8 @@ type Matrix = (Int, Int, V.Vector Char)
 --
 -- see https://en.wikipedia.org/wiki/AC-3_algorithm
 --
-ac3Phase1 :: Matrix -> [[Int]] -> Tree -> (Bool,Bool,Bool) -> IO()
-ac3Phase1 m slots tree options = let
+ac3Phase1 :: Matrix -> [[Int]] -> Tree -> (Bool,Bool,Bool) -> Frequencies -> IO()
+ac3Phase1 m slots tree options frequencies = let
     (width, height, matrix) = m
     variables = map constrain slots
     constrain slot = let
@@ -212,7 +233,7 @@ ac3Phase1 m slots tree options = let
         domain = foldr (\key -> S.intersection (getset key))
             (getset (head rules)) (tail rules)
         in (slot, domain)
-    in ac3Phase2 m variables tree options
+    in ac3Phase2 m variables tree options frequencies
 
 --
 -- Hold list of positions in matrix, and set of fitting words
@@ -232,8 +253,8 @@ type Entangled = ([Int], S.Set String, [Variable])
 --
 -- see https://en.wikipedia.org/wiki/AC-3_algorithm
 --
-ac3Phase2 :: Matrix -> [Variable] -> Tree -> (Bool, Bool, Bool) -> IO()
-ac3Phase2 m' vars tree (verbose,silent,bypassac3) = let
+ac3Phase2 :: Matrix -> [Variable] -> Tree -> (Bool, Bool, Bool) -> Frequencies -> IO()
+ac3Phase2 m' vars tree (verbose,silent,bypassac3) frequencies = let
     (width, height, matrix) = m'
     -- Find entanglements
     varsAt = foldr putAt M.empty vars
@@ -248,7 +269,6 @@ ac3Phase2 m' vars tree (verbose,silent,bypassac3) = let
     domains = M.fromList vars
     worklist = concat (map asWorks crossings)
     asWorks (target,_,others) = map (\(source,_) -> (source,target)) others
-    -- TODO: add option to bypass AC-3
     domains' = if bypassac3
         then domains
         else ac3Phase3 worklist domains worklist
@@ -292,7 +312,7 @@ ac3Phase2 m' vars tree (verbose,silent,bypassac3) = let
                 putStrLn "After AC-3"
                 mapM_ printReduced reduced
             else pure ()
-        startBacktrack m' material (verbose,silent)
+        startBacktrack m' material (verbose,silent) frequencies
 
 --
 -- Holds a binary constrinat between 2 slots
@@ -374,15 +394,30 @@ betterChooseSlot material (width,height,matrix) = let
         in result
     in head $ sortBy heuristic material
 
+betterCandidateSort frequencies candidates (width,height,matrix) (slot, _, crossings) = let
+    findPosition other = let
+        numbered = zip [0..] other
+        found = filter (\(i,pos) -> pos `elem` slot) numbered
+        in (fst (head found), length other)
+    frequencyScore candidate = let
+        annotated = map normalize $ zip (map findPosition crossings) candidate
+        normalize ((position,size),letter) = (letter, position, size)
+        l = map (\key -> M.findWithDefault 0.0 key frequencies) annotated
+        in sum l
+    frequencyCompare a b = let
+        fa = frequencyScore a
+        fb = frequencyScore b
+        in compare fb fa
+    in sortBy frequencyCompare candidates
+
 --
 -- Now backtrack
 --
-startBacktrack (width, height, matrix) material (verbose,silent) = do
+startBacktrack (width,height,matrix) material (verbose,silent) frequencies = do
     last <- newIORef =<< getCurrentTime
     solved <- newIORef False
     if not silent then printMatrix width matrix else pure ()
-    -- backtrack (width,height,matrix) material (verbose,silent) last solved naiveChooseSlot naiveCandidateSort
-    backtrack (width,height,matrix) material (verbose,silent) last solved betterChooseSlot naiveCandidateSort
+    backtrack (width,height,matrix) material (verbose,silent) last solved betterChooseSlot (betterCandidateSort frequencies)
 
 backtrack (width,height,matrix) [] (verbose,silent) last solved chooseSlot candidateSort = do
     printMatrix width matrix
@@ -406,7 +441,7 @@ backtrack (width,height,matrix) material (verbose,silent) last solved chooseSlot
     let material' = filter ((/=) m0) material
     let (slot, candidates, crossings) = m0
     let actual = filter (isLetter . snd) $ zip [0..] $ map ((V.!) matrix) slot
-    let candidates' = candidateSort candidates (width,height,matrix)
+    let candidates' = candidateSort candidates (width,height,matrix) m0
     (flip mapM_) candidates' ( \candidate -> do
         let compatible = all (\(i,c) -> (c == (candidate !! i))) actual
         let matrix' = (V.//) matrix (zip slot candidate)
