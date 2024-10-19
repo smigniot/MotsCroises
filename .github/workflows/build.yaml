@@ -68,3 +68,14 @@ jobs:
         run: cabal build all
         working-directory: Algorithm
 
+      - name: Copy executable
+        run: |
+          cabal install autofill --installdir=. --install-method=copy --overwrite-policy=always
+        working-directory: Algorithm
+
+      - name: Share executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: autofill-${{ runner.os }}
+          path: ./Algorithm/autofill
+
