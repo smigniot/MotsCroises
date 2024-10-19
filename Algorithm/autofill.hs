@@ -1,6 +1,6 @@
 import System.IO
 import System.Environment (getArgs)
-import Data.List (transpose, intercalate, sortBy)
+import Data.List (transpose, intercalate, sortBy, elemIndex)
 import Data.List.Split (chunksOf)
 import Data.Char (isSpace)
 import Data.Time (getCurrentTime, NominalDiffTime, diffUTCTime)
@@ -287,6 +287,8 @@ ac3Phase2 m' vars tree (verbose,silent,bypassac3,nosort) frequencies = let
     domainSize (_,d1,_) (_,d2,_)
         | length d1 < length d2 = LT
         | otherwise = GT
+    -- slot SRC at position pSrc meets [slot TGT at position pTgt]
+    constraints = mapWithPositions material
     addReduced (slot, originaldomain, crossings) = let
         domain = M.findWithDefault originaldomain slot domains'
         in (slot, originaldomain, domain, crossings)
@@ -320,7 +322,19 @@ ac3Phase2 m' vars tree (verbose,silent,bypassac3,nosort) frequencies = let
                 putStrLn "After AC-3"
                 mapM_ printReduced reduced
             else pure ()
-        startBacktrack m' material (verbose,silent,nosort) frequencies
+        constraints `seq` startBacktrack m' material (verbose,silent,nosort) frequencies constraints
+
+mapWithPositions :: [([Int],[String],[[Int]])] -> M.Map [Int] [(Int,[Int],Int)]
+mapWithPositions material = let
+    paired = map annotatePosition material
+    annotatePosition (slot,_,others) = (slot, map (toPos slot) others)
+    fromJust (Just a) = a
+    toPos slot other = let
+        common = head $ filter (`elem` slot) other
+        p1 = fromJust (elemIndex common slot)
+        p2 = fromJust (elemIndex common other)
+        in (p1, other, p2)
+    in M.fromList paired
 
 --
 -- Holds a binary constrinat between 2 slots
@@ -402,31 +416,27 @@ betterChooseSlot material (width,height,matrix) = let
         in result
     in head $ sortBy heuristic material
 
-betterCandidateSort frequencies candidates (width,height,matrix) (slot, _, crossings) = let
-    findPosition other = let
-        numbered = zip [0..] other
-        found = filter (\(i,pos) -> pos `elem` slot) numbered
-        in (fst (head found), length other)
-    frequencyScore candidate = let
-        annotated = map normalize $ zip (map findPosition crossings) candidate
-        normalize ((position,size),letter) = (letter, position, size)
-        l = map (\key -> M.findWithDefault 0.0 key frequencies) annotated
+betterCandidateSort frequencies constraints candidates (width,height,matrix) (slot, _, crossings) = let
+    crossers = M.findWithDefault [] slot constraints
+    scoreOf candidate = let
+        triplet (p1,other,p2) = ((candidate !! p1), p2, length other)
+        triplets = map triplet crossers 
+        l = map (\key -> M.findWithDefault 0.0 key frequencies) triplets
         in sum l
-    frequencyCompare a b = let
-        fa = frequencyScore a
-        fb = frequencyScore b
-        in compare fb fa
-    in sortBy frequencyCompare candidates
+    scored = map (\candidate -> (candidate, scoreOf candidate)) candidates
+    sorted = sortBy compareScore scored
+    compareScore (ca,sa) (cb,sb) = compare sb sa
+    in map fst sorted
 
 --
 -- Now backtrack
 --
-startBacktrack (width,height,matrix) material (verbose,silent,nosort) frequencies = do
+startBacktrack (width,height,matrix) material (verbose,silent,nosort) frequencies constraints = do
     last <- newIORef =<< getCurrentTime
     solved <- newIORef False
     let sortFunc = if nosort
         then naiveCandidateSort frequencies
-        else betterCandidateSort frequencies
+        else betterCandidateSort frequencies constraints
     if not silent then printMatrix width matrix else pure ()
     backtrack (width,height,matrix) material (verbose,silent) last solved betterChooseSlot sortFunc
 
