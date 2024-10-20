@@ -2,10 +2,17 @@
 
 This document describes one possible algorithm to generate a filled crossword grid from a starting template
 
-## Quickstart
+## Quickstart, in NodeJS
 
 * Ensure you are using NodeJS 22 or above
 * From the `Work` directory, run `cat complex.txt | node generate.js`
+
+![Demonstration](Demonstration.gif)
+
+## Quickstart, in Haskell
+
+* Tested with GHC 9.4.8+, Cabal 3.10+
+* From the `Algorithm` directory, run `cabal run -- autofill -d ../dict_fr.txt ../Data/complex.txt`
 
 ![Demonstration](Demonstration.gif)
 
@@ -73,7 +80,7 @@ aspell dump master fr \
     | tee >( sort | uniq > dictionary.txt )
 ````
 
-**_NOTE:_**  This program intentionaly does not ship with any official dictionary, say the Collins or the Larousse, because it allows the user to remove unwanted words - Allowing to create (Ex1) a dictionary tailored for kids - the author usecase, (Ex2) A conjugation-free dictionary or (Ex3) An animals only dictionary
+**_NOTE:_**  This program intentionaly does not ship with any official dictionary, say the Collins or the Larousse, because it allows the user to remove unwanted words - Allowing to create (Ex1) a dictionary tailored for kids - the author usecase, (Ex2) A conjugation-free dictionary or (Ex3) An animals only dictionary (Ex4) A non-nsfw dictionary
 
 ## Running the program
 
@@ -81,7 +88,7 @@ Prepare the prerequisites :
 * A `dictionary.txt` file in the Work folder
 * An input `template.txt` file
 
-Then run `cat template.txt | node generate.js` . Hopefully the program will terminate with a filled grid on standard output.
+Then run `cat template.txt | node generate.js` from `Work` or `cabal run -- autofill -d ../dict_fr.txt template.txt` from `Algorithm`. Hopefully the program will terminate with a filled grid on standard output.
 
 **_NOTE:_**  The average user can stop reading here. The next chapters describe the algorithm used by this program to try and fill the grid in a reasonable time - give it 200 seconds maximum.
 
@@ -183,29 +190,40 @@ Each time a candidate is tried at a slot, it can be eliminated if it creates a l
 
 Let's state the algorithm like that
 1. Start from the (parsed) template grid
-2. Find the slots containing at least one letter and at least one blank
+2. Find the slots containing at least one blank
 3. Choose one of those slots wisely
-	1. The current heuristic is to minimize the blanks and maximize the letters
-    2. In fact we should probably choose the one with the least candidates
-    3. It's a **heuristic** at this point - the goal being to avoid costly branches
-4. Iterate all candidates that can be placed [see NOTE] in this slot
-	1. Store the actual letters in the slot
-	2. Place the candidate in the slot, modifying the grid
-	3. Check every slot containing a modified cell of the grid
-		1. If some word still can be placed [see NOTE] at this slot, skip
+	1. Maximize the number of known letters - fill slots near to previous
+       populated slots
+    2. Minimize the number of candidates for the slot
+    3. Minimize the number of unknown letters
+    4. Maximize length - try long words early in depth search
+    5. It's a **heuristic** at this point - the goal being to avoid costly branches
+4. For the chose slot, sort candidates
+    1. Compute the frequency of each letter in crossing slots
+    2. Add all this frequency to get a score
+    3. Basically this maximizes the chance of having candidates in crossing slots
+    4. It's a **heuristic** at this point - the goal being to avoid costly branches
+    
+4. Iterate all candidates
+	1. Place the candidate in the slot, modifying the grid
+	2. Check every crossing slot containing a modified cell of the grid
+		1. If some word still can be placed at this crossing slot, skip
 		2. Else it's a dead-end, eliminate the candidate
-	4. If the candidate has not been eliminated, perform a recursion, at step 2
-	5. After recursion, restore the grid by canceling modifications of step 4.2
+	3. If the candidate has not been eliminated, perform a recursion, at step 2
+	4. After recursion, restore the grid by canceling modifications of step 4.1
 5. When no slot has at least one empty cell, it's a solution. Claim victory
 
 **_NOTE:_** To iterate the candidate, use the pattern tree described in the previous chapters.
 
-## 4. Heuristic
+## 4. Haskell version options
 
-* Use the slot
-	* With the least candidates
-	* With the minimum cells to fill
-	* With the maximum known letters
-* Sort candidates
-	* By topping those which maximize the probability of finding words in crossing slots
+`Usage: autofill [-d dictionary] [-b] [-v] [-q] [-n] [-h|--help] [gridfile]`
+
+* `-d dictionary` use another dictionary file than `./dictionary.txt`
+* `-b` bypass the AC-3 algorithm. AC-3 speeds a lot by pre-elminiating candidates if the grid is at least 1/3 filled. Disable on a nearly empty grid.
+* `-v` be verbose. Expect debugging information
+* `-q` be silent. No animation, only output a solution
+* `-n` don't sort candidates. Can speed up a little on grids with a high density of black cells
+* `-h` output usage help
+* `gridfile` a filename or `-` for `stdin`. Defaults to `stdin`
 
