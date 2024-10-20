@@ -434,20 +434,21 @@ betterCandidateSort frequencies constraints candidates (width,height,matrix) (sl
 startBacktrack (width,height,matrix) material (verbose,silent,nosort) frequencies constraints = do
     last <- newIORef =<< getCurrentTime
     solved <- newIORef False
+    let candidatesBySlot = M.fromList (map (\(slot,candidates,_) -> (slot,candidates)) material)
     let sortFunc = if nosort
         then naiveCandidateSort frequencies
         else betterCandidateSort frequencies constraints
     if not silent then printMatrix width matrix else pure ()
-    backtrack (width,height,matrix) material (verbose,silent) last solved betterChooseSlot sortFunc
+    backtrack (width,height,matrix) material (verbose,silent) last solved betterChooseSlot sortFunc candidatesBySlot
 
 {-# SCC backtrack #-}
 
-backtrack (width,height,matrix) [] (verbose,silent) last solved chooseSlot candidateSort = do
+backtrack (width,height,matrix) [] (verbose,silent) last solved chooseSlot candidateSort candidatesBySlot = do
     printMatrix width matrix
     atomicWriteIORef solved True
     return ()
 
-backtrack (width,height,matrix) material (verbose,silent) last solved chooseSlot candidateSort = do
+backtrack (width,height,matrix) material (verbose,silent) last solved chooseSlot candidateSort candidatesBySlot = do
     if not silent
     then do
         now <- getCurrentTime
@@ -468,7 +469,7 @@ backtrack (width,height,matrix) material (verbose,silent) last solved chooseSlot
     (flip mapM_) candidates' ( \candidate -> do
         let compatible = all (\(i,c) -> (c == (candidate !! i))) actual
         let matrix' = (V.//) matrix (zip slot candidate)
-        let blocker = any (hasNoRemaining material (width,height,matrix')) crossings
+        let blocker = any (hasNoRemaining material candidatesBySlot (width,height,matrix')) crossings
         if (not compatible) || blocker
         then pure ()
         else do
@@ -476,17 +477,16 @@ backtrack (width,height,matrix) material (verbose,silent) last solved chooseSlot
             if isSolved
             then pure ()
             else do
-                backtrack (width,height,matrix') (material') (verbose,silent) last solved chooseSlot candidateSort
+                backtrack (width,height,matrix') (material') (verbose,silent) last solved chooseSlot candidateSort candidatesBySlot
         )
     
-hasNoRemaining :: [([Int],[String],[[Int]])] -> (Int,Int,V.Vector Char) -> [Int] -> Bool
-hasNoRemaining material (width,height,matrix) slot = let
-    found = filter isSlot material
-    (_,candidates,_) = head found
+hasNoRemaining :: [([Int],[String],[[Int]])] -> M.Map [Int] [String] -> (Int,Int,V.Vector Char) -> [Int] -> Bool
+hasNoRemaining material candidatesBySlot (width,height,matrix) slot = let
+    candidates = M.findWithDefault [] slot candidatesBySlot
     isSlot (a,_,_) = a == slot
     actual = filter (isLetter . snd) $ zip [0..] $ map ((V.!) matrix) slot
     hasone = any isCompatible candidates
     isCompatible candidate = all (\(i,c) -> (c == (candidate !! i))) actual
-    in ((not . null) found) && (not hasone)
+    in not hasone
 
 
