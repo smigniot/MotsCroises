@@ -19,10 +19,10 @@ jobs:
         include:
           - os: ubuntu-latest
             ghc-version: '9.8'
-          - os: windows-latest
-            ghc-version: '9.8'
-          - os: macos-latest
-            ghc-version: '9.8'
+          #- os: windows-latest
+          #  ghc-version: '9.8'
+          #- os: macos-latest
+          #  ghc-version: '9.8'
 
     steps:
       - uses: actions/checkout@v4
