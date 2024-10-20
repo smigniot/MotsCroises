@@ -10,4 +10,4 @@ node_modules
 autofill
 dist-newstyle
 autofill.hp
-autofill.prof
+*.prof
