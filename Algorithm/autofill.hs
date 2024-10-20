@@ -440,6 +440,8 @@ startBacktrack (width,height,matrix) material (verbose,silent,nosort) frequencie
     if not silent then printMatrix width matrix else pure ()
     backtrack (width,height,matrix) material (verbose,silent) last solved betterChooseSlot sortFunc
 
+{-# SCC backtrack #-}
+
 backtrack (width,height,matrix) [] (verbose,silent) last solved chooseSlot candidateSort = do
     printMatrix width matrix
     atomicWriteIORef solved True

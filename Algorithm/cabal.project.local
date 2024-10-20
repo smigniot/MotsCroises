@@ -1,1 +1,4 @@
+--ignore-project: False
+--executable-profiling: True
 optimization: 2
+--profiling: True
