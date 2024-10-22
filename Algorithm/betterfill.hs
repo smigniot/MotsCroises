@@ -2,7 +2,7 @@ import System.IO
 import System.Environment (getArgs)
 import Data.List (transpose, intercalate, sortBy, elemIndex, intersect)
 import Data.List.Split (chunksOf)
-import Data.Char (isSpace)
+import Data.Char (isSpace, toUpper)
 import Data.Time (getCurrentTime, NominalDiffTime, diffUTCTime)
 import Data.Time.Format (formatTime, defaultTimeLocale)
 import Data.IORef (newIORef, readIORef, atomicWriteIORef)
@@ -57,7 +57,9 @@ betterfill dictfile gridfile silent = do
     gridbody <- if "-" == gridfile then getContents else readFile gridfile
     let (matrix,slots) = readGrid gridbody
         constrained = constrainSlots slots
-        dictionary = filter (not . null) $ map trim $ lines dictbody
+        dictionary = map (map toUpper) $ filter (not . null) (
+            map trim $ lines dictbody )
+        tree = makeTree dictionary
         in do
             putStrLn $ "Matrix :\n" ++ (intercalate "\n"
                 (chunksOf (w matrix) (V.toList (v matrix))))
@@ -153,6 +155,19 @@ constrainSlot all slot = let
     collect Nothing l = l
     in (slot, foldr collect [] withpos)
 
+--
+-- A multilevel tree
+--
+-- 1. By word size    (25 max in FR)
+-- 2. By position     (25 max)
+-- 3. By letter       (26)
+-- 4. A set of string (50364 max in FR)
+--
+type Tree = V.Vector (V.Vector (V.Vector (S.Set String)))
+makeTree :: [String] -> Tree
+makeTree words = V.empty
+    -- TODO : implement me
+
 
 -- Under refactoring
 
@@ -213,12 +228,12 @@ cleanScreen n = do
 --
 -- A map<length, map<(position,letter), set<words>>>
 --
-type Tree = M.Map Int (M.Map (Int,Char) (S.Set String))
+type Tree' = M.Map Int (M.Map (Int,Char) (S.Set String))
 
 --
 -- Classify by length by letter at position
 --
-classify :: [String] -> Tree
+classify :: [String] -> Tree'
 classify words = let
     ingest word tree = let
         n = length word
@@ -251,7 +266,7 @@ type Matrix' = (Int, Int, V.Vector Char)
 --
 -- see https://en.wikipedia.org/wiki/AC-3_algorithm
 --
-ac3Phase1 :: Matrix' -> [[Int]] -> Tree -> (Bool,Bool,Bool,Bool) -> Frequencies -> IO()
+ac3Phase1 :: Matrix' -> [[Int]] -> Tree' -> (Bool,Bool,Bool,Bool) -> Frequencies -> IO()
 ac3Phase1 m slots tree options frequencies = let
     (width, height, matrix) = m
     variables = map constrain slots
@@ -284,7 +299,7 @@ type Entangled = ([Int], S.Set String, [Variable])
 --
 -- see https://en.wikipedia.org/wiki/AC-3_algorithm
 --
-ac3Phase2 :: Matrix' -> [Variable] -> Tree -> (Bool, Bool, Bool, Bool) -> Frequencies -> IO()
+ac3Phase2 :: Matrix' -> [Variable] -> Tree' -> (Bool, Bool, Bool, Bool) -> Frequencies -> IO()
 ac3Phase2 m' vars tree (verbose,silent,bypassac3,nosort) frequencies = let
     (width, height, matrix) = m'
     -- Find entanglements
