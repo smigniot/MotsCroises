@@ -1,6 +1,6 @@
 import System.IO
 import System.Environment (getArgs)
-import Data.List (transpose, intercalate, sortBy, elemIndex)
+import Data.List (transpose, intercalate, sortBy, elemIndex, intersect)
 import Data.List.Split (chunksOf)
 import Data.Char (isSpace)
 import Data.Time (getCurrentTime, NominalDiffTime, diffUTCTime)
@@ -56,8 +56,11 @@ betterfill dictfile gridfile silent = do
     dictbody <- readFile dictfile
     gridbody <- if "-" == gridfile then getContents else readFile gridfile
     let (matrix,slots) = readGrid gridbody
+        constrained = constrainSlots slots
         in do
-            putStrLn $ "BetterFill : " ++ show matrix
+            putStrLn $ "Matrix :\n" ++ (intercalate "\n"
+                (chunksOf (w matrix) (V.toList (v matrix))))
+            putStrLn $ "Constrained : " ++ show constrained
 
 --
 -- An efficient grid holder
@@ -69,13 +72,20 @@ data Matrix = Matrix {
 } deriving(Ord,Eq,Show)
 
 --
+-- A slot is a list of cells, by remapped coordinates
+--
+-- Remapping is coord(x,y) = y*width+x
+--
+type Slot = [Int]
+
+--
 -- Read the grid, returning
 --
 -- width and height,
 -- the flattened vector of size width*height
 -- and the list of slots
 --
-readGrid :: String -> (Matrix, [[Int]])
+readGrid :: String -> (Matrix, [Slot])
 readGrid txt = let
     m = map asRow (zip [0..] (lines txt))
     asRow (y,l) = map (asCell y) (zip [0..] l)
@@ -105,6 +115,44 @@ findSlots (v:others) = findSlots' [] v ++ findSlots others
             twoOrMore (a:b:xs) = [(a:b:xs)]
             twoOrMore _ = []
 
+--
+-- A crossing happens when slotA at positionA meets slotB at positionB
+--
+data Crossing = Crossing {
+    posA  :: Int
+  , slotB :: Slot
+  , posB  :: Int
+} deriving(Ord,Eq,Show)
+
+--
+-- A slot and its crossing
+--
+type ConstrainedSlot = (Slot, [Crossing])
+
+--
+-- Compute slot crossings
+--
+constrainSlots :: [Slot] -> [ConstrainedSlot]
+constrainSlots slots = map (constrainSlot slots) slots
+constrainSlot all slot = let
+    others = filter ((/=) slot) all
+    withpos = map findPos others
+    findPos other = let
+        common = intersect other slot
+        crosses = not (null common)
+        fromJust (Just a) = a
+        e = head common
+        posA = fromJust $ elemIndex e slot
+        posB = fromJust $ elemIndex e other
+        in if crosses
+            then Just (Crossing posA other posB)
+            else Nothing
+    collect (Just a) l = a:l
+    collect Nothing l = l
+    in (slot, foldr collect [] withpos)
+
+
+-- Under refactoring
 
 type Frequencies = M.Map (Char, Int, Int) Float
 
