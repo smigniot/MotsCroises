@@ -57,10 +57,12 @@ betterfill dictfile gridfile silent = do
     gridbody <- if "-" == gridfile then getContents else readFile gridfile
     let (matrix,slots) = readGrid gridbody
         constrained = constrainSlots slots
+        dictionary = filter (not . null) $ map trim $ lines dictbody
         in do
             putStrLn $ "Matrix :\n" ++ (intercalate "\n"
                 (chunksOf (w matrix) (V.toList (v matrix))))
             putStrLn $ "Constrained : " ++ show constrained
+            putStrLn $ "Dictionary : " ++ show (length dictionary)
 
 --
 -- An efficient grid holder
