@@ -17,3 +17,17 @@ executable autofill
 --                      "-with-rtsopts=-N -p -s"
     hs-source-dirs:   .
     default-language: Haskell2010
+
+executable betterfill
+    main-is:          betterfill.hs
+    build-depends:    base >=4.16.4.0
+                    , vector >=0.13.1.0
+                    , containers >=0.7
+                    , time >=1.14
+                    , split >=0.2.5
+--    ghc-options:      -O2
+--                      -threaded
+--                      -fprof-auto
+--                      "-with-rtsopts=-N -p -s"
+    hs-source-dirs:   .
+    default-language: Haskell2010
