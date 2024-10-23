@@ -5,7 +5,7 @@ import Data.List.Split (chunksOf)
 import Data.Char (isSpace, toUpper)
 import Data.Time (getCurrentTime, NominalDiffTime, diffUTCTime)
 import Data.Time.Format (formatTime, defaultTimeLocale)
-import Data.IORef (newIORef, readIORef, atomicWriteIORef)
+import Data.IORef (IORef, newIORef, readIORef, atomicWriteIORef)
 import qualified Data.Vector as V
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
@@ -257,6 +257,8 @@ startBacktrack matrix constrained dictionary tree frequencies silent = let
 -- Compute the candidates with tree, Sort them by frequency score
 -- Apply the candidate, recurse
 --
+backtrack :: Matrix -> [ConstrainedSlot] -> [String]
+                  -> Tree -> Frequencies -> IORef Bool -> Bool -> IO()
 backtrack matrix [] dictionary tree frequencies solved silent = do
     atomicWriteIORef solved True
     if silent
@@ -268,21 +270,30 @@ backtrack matrix constrained@(c0:cs) dictionary tree frequencies solved silent =
         w = getWord (fst c) matrix
         k = length $ filter isLetter w
         uk = (length w) - k
-        in (k,uk)
-    (k0, uk0) = kuk c0
-    (topGroup,_,_) = foldr keeptop ([c0],k0,uk0) cs
-    keeptop c2 (l,k1,uk1) = let
-        (k2, uk2) = kuk c2
-        better = (k2 > k1) || ((k2 == k1) && (uk2 < uk1))
+        in ([c],k,uk)
+    (topGroup,_,_) = foldr keepMostKnown (kuk c0) cs
+    keepMostKnown c2 (l,k1,uk1) = let
+        (_,k2, uk2) = kuk c2
+        better =   (k2 > k1)  || ((k2 == k1) && (uk2 < uk1))
         samerank = (k1 == k2) && (uk1 == uk2)
         result
             | better = ([c2],k2,uk2)
             | samerank = ((c2:l),k2,uk2)
             | otherwise = (l,k1,uk1)
         in result
+    withCan = zip topGroup (map
+        ((candidatesOf tree dictionary matrix) . fst) topGroup)
+    best = foldr keepLeastCandidate (head withCan) (tail withCan)
+    keepLeastCandidate (c1,set1) (c2,set2)
+        | length set2 < length set1 = (c2,set2)
+        | otherwise = (c1,set1)
     in do
         putStrLn ("TODO: implement me " ++ intercalate ", "
                 (map ((showSlot (w matrix)) . fst) topGroup))
+        putStrLn ("TODO: implement me " ++ intercalate ", "
+                (map (show . length) withCan))
+        putStrLn ("TODO: implement me " ++ showSlot (w matrix) (fst (fst best))
+                ++ " : " ++ intercalate ", " (S.toList (snd best)))
 
 
 --
@@ -298,4 +309,18 @@ isLetter c
     | (('A' <= c) && (c <= 'Z')) = True
     | otherwise = False
 
+--
+-- Compute the candidates for a given slot
+--
+candidatesOf :: Tree -> [String] -> Matrix -> Slot -> S.Set String
+candidatesOf tree dictionary matrix slot = let
+    current = getWord slot matrix
+    n = length current
+    rules = filter (isLetter . snd) $ zip [0..] $ getWord slot matrix
+    sets = map candidateSet rules
+    candidateSet (pos,letter) = M.findWithDefault S.empty (n,pos,letter) tree
+    allWords = S.fromList $ filter (\w -> n == length w) dictionary
+    in if null rules
+        then allWords
+        else foldr S.intersection (head sets) (tail sets)
 
