@@ -249,8 +249,10 @@ startBacktrack matrix constrained dictionary tree frequencies silent = let
         solved <- newIORef False
         if silent
         then pure ()
-        else putStrLn $ "Searching :\n" ++ (intercalate "\n"
+        else do
+            putStrLn $ "Search :\n" ++ (intercalate "\n"
                     (chunksOf (w matrix) (V.toList (v matrix))))
+            hFlush stdout
         backtrack matrix remaining dictionary tree frequencies solved lastlog silent
 
 --
@@ -273,13 +275,14 @@ backtrack :: Matrix -> [ConstrainedSlot] -> [String]
                   -> Tree -> Frequencies -> IORef Bool 
                   -> IORef UTCTime -> Bool -> IO()
 backtrack matrix [] _ _ _ solved _ silent = do
-    atomicWriteIORef solved True
     if silent
     then pure ()
     else do
         cleanScreen (1+(h matrix))
         putStrLn "Solution :"
     putStrLn (intercalate "\n" (chunksOf (w matrix) (V.toList (v matrix))))
+    hFlush stdout
+    atomicWriteIORef solved True
 backtrack matrix constrained@(c0:cs) dictionary tree frequencies solved lastlog silent = let
     kuk c = let
         w = getWord (fst c) matrix
@@ -383,7 +386,7 @@ tryCandidate matrix@(Matrix w h v) others dictionary tree frequencies solved las
         now <- getCurrentTime
         before <- readIORef lastlog
         let elapsed = diffUTCTime now before
-        if silent || (elapsed < 0.250)
+        if silent || (elapsed < 0.250) || isSolved
         then pure ()
         else do
             cleanScreen h

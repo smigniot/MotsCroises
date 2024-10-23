@@ -14,7 +14,7 @@ This document describes one possible algorithm to generate a filled crossword gr
 * Tested with GHC 9.4.8+, Cabal 3.10+
 * From the `Algorithm` directory, run `cabal run -- betterfill -d ../dict_fr.txt ../Data/complex.txt`
 
-![Demonstration](Demonstration.gif)
+![Demonstration](Demonstration2.gif)
 
 ## The Starting template
 
