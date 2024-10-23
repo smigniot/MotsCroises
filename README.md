@@ -12,7 +12,7 @@ This document describes one possible algorithm to generate a filled crossword gr
 ## Quickstart, in Haskell
 
 * Tested with GHC 9.4.8+, Cabal 3.10+
-* From the `Algorithm` directory, run `cabal run -- autofill -d ../dict_fr.txt ../Data/complex.txt`
+* From the `Algorithm` directory, run `cabal run -- betterfill -d ../dict_fr.txt ../Data/complex.txt`
 
 ![Demonstration](Demonstration.gif)
 
@@ -88,7 +88,7 @@ Prepare the prerequisites :
 * A `dictionary.txt` file in the Work folder
 * An input `template.txt` file
 
-Then run `cat template.txt | node generate.js` from `Work` or `cabal run -- autofill -d ../dict_fr.txt template.txt` from `Algorithm`. Hopefully the program will terminate with a filled grid on standard output.
+Then run `cat template.txt | node generate.js` from `Work` or `cabal run -- betterfill -d ../dict_fr.txt template.txt` from `Algorithm`. Hopefully the program will terminate with a filled grid on standard output.
 
 **_NOTE:_**  The average user can stop reading here. The next chapters describe the algorithm used by this program to try and fill the grid in a reasonable time - give it 200 seconds maximum.
 
@@ -224,6 +224,13 @@ Let's state the algorithm like that
 * `-v` be verbose. Expect debugging information
 * `-q` be silent. No animation, only output a solution
 * `-n` don't sort candidates. Can speed up a little on grids with a high density of black cells
+* `-h` output usage help
+* `gridfile` a filename or `-` for `stdin`. Defaults to `stdin`
+
+`Usage: betterfill [-d dictionary] [-b] [-v] [-q] [-n] [-h|--help] [gridfile]`
+
+* `-d dictionary` use another dictionary file than `./dictionary.txt`
+* `-q` be silent. No animation, only output a solution
 * `-h` output usage help
 * `gridfile` a filename or `-` for `stdin`. Defaults to `stdin`
 
