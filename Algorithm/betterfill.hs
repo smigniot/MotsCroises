@@ -332,10 +332,38 @@ testCandidates :: Matrix -> [ConstrainedSlot] -> [String]
                   -> IO()
 testCandidates matrix others dictionary tree frequencies solved silent chosen@(slot, crossings) candidates = let
     withFreq = zip candidates $ map getScore candidates
-    getScore condidate = undefined
-        -- sum for all crossing of (
-        --  scoreof(length slotB, posB, word[posA])
-        -- )
-    in undefined
+    getScore candidate = sum $ map (freqOf candidate) crossings
+    freqOf candidate (Crossing pa slotB pb) = let
+        wordsize = length slotB
+        letter = candidate !! pa
+        key = (wordsize, pb, letter)
+        in M.findWithDefault 0.0 key frequencies 
+    compared = sortBy compareFreq withFreq
+    compareFreq (ca, fa) (cb, fb) = compare fb fa
+    sorted = map fst compared
+    in mapM_ (tryCandidate matrix others dictionary tree frequencies solved silent chosen) sorted
 
+--
+-- Perform the 3nd phase of the recursion
+--
+-- Apply the candidate
+-- Check if it blocks
+-- Recurse
+--
+tryCandidate :: Matrix -> [ConstrainedSlot] -> [String]
+                  -> Tree -> Frequencies -> IORef Bool -> Bool
+                  -> ConstrainedSlot -> String
+                  -> IO()
+tryCandidate matrix@(Matrix w h v) others dictionary tree frequencies solved silent chosen@(slot, crossings) candidate = let
+    current = getWord slot matrix
+    matrix' = Matrix w h (((V.//) v) $ zip slot candidate)
+    isImpacted crossing@(Crossing pa slotB pb) = '.' == (current !! pa)
+    ok = all haveCandidate $ filter isImpacted crossings
+    haveCandidate crossing@(Crossing pa slotB pb) = not (null (
+        candidatesOf tree dictionary  matrix' slotB))
+    in do
+        isSolved <- readIORef solved
+        if ok && (not isSolved)
+        then backtrack matrix' others dictionary tree frequencies solved silent
+        else pure ()
 
