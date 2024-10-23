@@ -255,7 +255,7 @@ startBacktrack matrix constrained dictionary tree frequencies silent = let
 -- Choose the best slot : maximize known, minimize unknown,
 --  maximize candidate length, maximize crossings
 -- Compute the candidates with tree, Sort them by frequency score
--- Apply the candidate, recurse
+-- Apply the candidate if non blocking, recurse
 --
 backtrack :: Matrix -> [ConstrainedSlot] -> [String]
                   -> Tree -> Frequencies -> IORef Bool -> Bool -> IO()
@@ -283,18 +283,13 @@ backtrack matrix constrained@(c0:cs) dictionary tree frequencies solved silent =
         in result
     withCan = zip topGroup (map
         ((candidatesOf tree dictionary matrix) . fst) topGroup)
-    best = foldr keepLeastCandidate (head withCan) (tail withCan)
+    (chosen, candidates) =
+        foldr keepLeastCandidate (head withCan) (tail withCan)
     keepLeastCandidate (c1,set1) (c2,set2)
         | length set2 < length set1 = (c2,set2)
         | otherwise = (c1,set1)
-    in do
-        putStrLn ("TODO: implement me " ++ intercalate ", "
-                (map ((showSlot (w matrix)) . fst) topGroup))
-        putStrLn ("TODO: implement me " ++ intercalate ", "
-                (map (show . length) withCan))
-        putStrLn ("TODO: implement me " ++ showSlot (w matrix) (fst (fst best))
-                ++ " : " ++ intercalate ", " (S.toList (snd best)))
-
+    others = filter ((/=) chosen) constrained
+    in testCandidates matrix others dictionary tree frequencies solved silent chosen (S.toList candidates)
 
 --
 -- Get the current state of a slot in a matrix
@@ -323,4 +318,24 @@ candidatesOf tree dictionary matrix slot = let
     in if null rules
         then allWords
         else foldr S.intersection (head sets) (tail sets)
+
+--
+-- Perform the 2nd phase of the recursion
+--
+-- Sort candidates by frequency score
+-- Apply the candidate, check if it blocks,
+-- recurse
+--
+testCandidates :: Matrix -> [ConstrainedSlot] -> [String]
+                  -> Tree -> Frequencies -> IORef Bool -> Bool
+                  -> ConstrainedSlot -> [String]
+                  -> IO()
+testCandidates matrix others dictionary tree frequencies solved silent chosen@(slot, crossings) candidates = let
+    withFreq = zip candidates $ map getScore candidates
+    getScore condidate = undefined
+        -- sum for all crossing of (
+        --  scoreof(length slotB, posB, word[posA])
+        -- )
+    in undefined
+
 
