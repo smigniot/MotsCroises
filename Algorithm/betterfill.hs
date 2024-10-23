@@ -1,10 +1,10 @@
 import System.IO
 import System.Environment (getArgs)
+import Control.Monad ((=<<))
 import Data.List (transpose, intercalate, sortBy, elemIndex, intersect, foldl')
 import Data.List.Split (chunksOf)
 import Data.Char (isSpace, toUpper)
-import Data.Time (getCurrentTime, NominalDiffTime, diffUTCTime)
-import Data.Time.Format (formatTime, defaultTimeLocale)
+import Data.Time (getCurrentTime, NominalDiffTime, diffUTCTime, UTCTime)
 import Data.IORef (IORef, newIORef, readIORef, atomicWriteIORef)
 import qualified Data.Vector as V
 import qualified Data.Set as S
@@ -13,6 +13,7 @@ import qualified Data.Map.Strict as M
 --
 -- Run the betterfill algorithm
 --
+main :: IO ()
 main = do
     args <- getArgs
     if ("-h" `elem` args) || ("--help" `elem` args)
@@ -217,9 +218,9 @@ makeFrequencies tree = let
     --  by the total count of all same (Int,Int)
     pairs = M.toList tree
     totals = foldl' reduceTotal M.empty pairs
-    reduceTotal m ((n,pos,letter),s) =
+    reduceTotal m ((n,pos,_),s) =
         M.insert (n,pos) ((M.findWithDefault 0 (n,pos) m) + (S.size s)) m
-    norm (key@(n,pos,letter),s) = let
+    norm (key@(n,pos,_),s) = let
         count = S.size s
         total = M.findWithDefault count (n,pos) totals
         frequency = (fromIntegral count) / (fromIntegral total)
@@ -238,15 +239,26 @@ startBacktrack :: Matrix -> [ConstrainedSlot] -> [String]
 startBacktrack matrix constrained dictionary tree frequencies silent = let
     remaining = filter (not . filled) constrained
     removed = filter filled constrained
-    filled (slot, crossings) = all isLetter $ getWord slot matrix
+    filled (slot, _) = all isLetter $ getWord slot matrix
     in do
+        lastlog <- newIORef =<< getCurrentTime
         if (null removed) || silent
         then pure ()
         else putStrLn ("Removed : " ++ intercalate ", "
                 (map ((showSlot (w matrix)) . fst) removed))
         solved <- newIORef False
-        backtrack matrix remaining dictionary tree frequencies solved silent
+        if silent
+        then pure ()
+        else putStrLn $ "Searching :\n" ++ (intercalate "\n"
+                    (chunksOf (w matrix) (V.toList (v matrix))))
+        backtrack matrix remaining dictionary tree frequencies solved lastlog silent
 
+--
+-- Clean n lines of the terminal
+--
+cleanScreen n = do
+    mapM_ (\_ -> putStr "\ESC[F") [1..n]
+    hFlush stdout
 
 --
 -- Perform the recursion
@@ -258,14 +270,17 @@ startBacktrack matrix constrained dictionary tree frequencies silent = let
 -- Apply the candidate if non blocking, recurse
 --
 backtrack :: Matrix -> [ConstrainedSlot] -> [String]
-                  -> Tree -> Frequencies -> IORef Bool -> Bool -> IO()
-backtrack matrix [] dictionary tree frequencies solved silent = do
+                  -> Tree -> Frequencies -> IORef Bool 
+                  -> IORef UTCTime -> Bool -> IO()
+backtrack matrix [] _ _ _ solved _ silent = do
     atomicWriteIORef solved True
     if silent
     then pure ()
-    else putStrLn "Solution :\n"
+    else do
+        cleanScreen (1+(h matrix))
+        putStrLn "Solution :"
     putStrLn (intercalate "\n" (chunksOf (w matrix) (V.toList (v matrix))))
-backtrack matrix constrained@(c0:cs) dictionary tree frequencies solved silent = let
+backtrack matrix constrained@(c0:cs) dictionary tree frequencies solved lastlog silent = let
     kuk c = let
         w = getWord (fst c) matrix
         k = length $ filter isLetter w
@@ -289,7 +304,7 @@ backtrack matrix constrained@(c0:cs) dictionary tree frequencies solved silent =
         | length set2 < length set1 = (c2,set2)
         | otherwise = (c1,set1)
     others = filter ((/=) chosen) constrained
-    in testCandidates matrix others dictionary tree frequencies solved silent chosen (S.toList candidates)
+    in testCandidates matrix others dictionary tree frequencies solved lastlog silent chosen (S.toList candidates)
 
 --
 -- Get the current state of a slot in a matrix
@@ -327,10 +342,11 @@ candidatesOf tree dictionary matrix slot = let
 -- recurse
 --
 testCandidates :: Matrix -> [ConstrainedSlot] -> [String]
-                  -> Tree -> Frequencies -> IORef Bool -> Bool
+                  -> Tree -> Frequencies -> IORef Bool
+                  -> IORef UTCTime -> Bool
                   -> ConstrainedSlot -> [String]
                   -> IO()
-testCandidates matrix others dictionary tree frequencies solved silent chosen@(slot, crossings) candidates = let
+testCandidates matrix others dictionary tree frequencies solved lastlog silent chosen@(_, crossings) candidates = let
     withFreq = zip candidates $ map getScore candidates
     getScore candidate = sum $ map (freqOf candidate) crossings
     freqOf candidate (Crossing pa slotB pb) = let
@@ -339,9 +355,9 @@ testCandidates matrix others dictionary tree frequencies solved silent chosen@(s
         key = (wordsize, pb, letter)
         in M.findWithDefault 0.0 key frequencies 
     compared = sortBy compareFreq withFreq
-    compareFreq (ca, fa) (cb, fb) = compare fb fa
+    compareFreq (_, fa) (_, fb) = compare fb fa
     sorted = map fst compared
-    in mapM_ (tryCandidate matrix others dictionary tree frequencies solved silent chosen) sorted
+    in mapM_ (tryCandidate matrix others dictionary tree frequencies solved lastlog silent chosen) sorted
 
 --
 -- Perform the 3nd phase of the recursion
@@ -351,19 +367,29 @@ testCandidates matrix others dictionary tree frequencies solved silent chosen@(s
 -- Recurse
 --
 tryCandidate :: Matrix -> [ConstrainedSlot] -> [String]
-                  -> Tree -> Frequencies -> IORef Bool -> Bool
+                  -> Tree -> Frequencies -> IORef Bool
+                  -> IORef UTCTime -> Bool
                   -> ConstrainedSlot -> String
                   -> IO()
-tryCandidate matrix@(Matrix w h v) others dictionary tree frequencies solved silent chosen@(slot, crossings) candidate = let
+tryCandidate matrix@(Matrix w h v) others dictionary tree frequencies solved lastlog silent (slot, crossings) candidate = let
     current = getWord slot matrix
     matrix' = Matrix w h (((V.//) v) $ zip slot candidate)
-    isImpacted crossing@(Crossing pa slotB pb) = '.' == (current !! pa)
+    isImpacted (Crossing pa _ _) = '.' == (current !! pa)
     ok = all haveCandidate $ filter isImpacted crossings
-    haveCandidate crossing@(Crossing pa slotB pb) = not (null (
+    haveCandidate (Crossing _ slotB _) = not (null (
         candidatesOf tree dictionary  matrix' slotB))
     in do
         isSolved <- readIORef solved
+        now <- getCurrentTime
+        before <- readIORef lastlog
+        let elapsed = diffUTCTime now before
+        if silent || (elapsed < 0.250)
+        then pure ()
+        else do
+            cleanScreen h
+            atomicWriteIORef lastlog now
+            putStrLn $ intercalate "\n" (chunksOf w (V.toList v))
         if ok && (not isSolved)
-        then backtrack matrix' others dictionary tree frequencies solved silent
+        then backtrack matrix' others dictionary tree frequencies solved lastlog silent
         else pure ()
 

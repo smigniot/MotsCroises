@@ -27,6 +27,7 @@ executable betterfill
                     , split >=0.2.5
 --    ghc-options:      -O2
 --                      -threaded
+--                      -Wall
 --                      -fprof-auto
 --                      "-with-rtsopts=-N -p -s"
     hs-source-dirs:   .
