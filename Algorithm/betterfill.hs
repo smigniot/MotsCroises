@@ -263,8 +263,26 @@ backtrack matrix [] dictionary tree frequencies solved silent = do
     then pure ()
     else putStrLn "Solution :\n"
     putStrLn (intercalate "\n" (chunksOf (w matrix) (V.toList (v matrix))))
-backtrack matrix constrained@(c:cs) dictionary tree frequencies solved silent = do
-    putStrLn "TODO: implement me"
+backtrack matrix constrained@(c0:cs) dictionary tree frequencies solved silent = let
+    kuk c = let
+        w = getWord (fst c) matrix
+        k = length $ filter isLetter w
+        uk = (length w) - k
+        in (k,uk)
+    (k0, uk0) = kuk c0
+    (topGroup,_,_) = foldr keeptop ([c0],k0,uk0) cs
+    keeptop c2 (l,k1,uk1) = let
+        (k2, uk2) = kuk c2
+        better = (k2 > k1) || ((k2 == k1) && (uk2 < uk1))
+        samerank = (k1 == k2) && (uk1 == uk2)
+        result
+            | better = ([c2],k2,uk2)
+            | samerank = ((c2:l),k2,uk2)
+            | otherwise = (l,k1,uk1)
+        in result
+    in do
+        putStrLn ("TODO: implement me " ++ intercalate ", "
+                (map ((showSlot (w matrix)) . fst) topGroup))
 
 
 --
