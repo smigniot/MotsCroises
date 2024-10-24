@@ -227,7 +227,7 @@ Let's state the algorithm like that
 * `-h` output usage help
 * `gridfile` a filename or `-` for `stdin`. Defaults to `stdin`
 
-`Usage: betterfill [-d dictionary] [-b] [-v] [-q] [-n] [-h|--help] [gridfile]`
+`Usage: betterfill [-d dictionary] [-q] [-h|--help] [gridfile]`
 
 * `-d dictionary` use another dictionary file than `./dictionary.txt`
 * `-q` be silent. No animation, only output a solution
