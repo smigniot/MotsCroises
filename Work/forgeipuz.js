@@ -37,7 +37,7 @@ for(let y=0; y<h; y++) {
             0
         ));
         if(isDown) {
-            down.push([clueNumber,""])
+            down.push([clueNumber,x,y])
         }
         if(isAcross) {
             across.push([clueNumber,""])
@@ -45,8 +45,14 @@ for(let y=0; y<h; y++) {
         row.push(ele);
     }
 }
+down.sort((a,b)=>{
+    const d1 = a[1]-b[1];
+    const d2 = a[2]-b[2];
+    return d1 || d2;
+});
+const down2 = down.map(v=>[v[0],""]);
 console.log(out);
 console.log(across);
-console.log(down);
+console.log(down2);
 
 
