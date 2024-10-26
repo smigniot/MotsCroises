@@ -51,8 +51,20 @@ down.sort((a,b)=>{
     return d1 || d2;
 });
 const down2 = down.map(v=>[v[0],""]);
-console.log(out);
-console.log(across);
-console.log(down2);
+process.stdout.write(
+    "[\n"+
+    out.map(row=>"\t["+row.map(cell=>(cell=='#')?'"#"':(
+        `   ${cell}`.slice(-3)
+    )).join(",")+"]").join("\n")
+    +"\n]\n"
+);
+[across, down2].forEach(tab=>{
+    process.stdout.write(
+        "[\n"+
+        tab.map(pair=>"\t\t[ "+ `   ${pair[0]}`.slice(-3)
+            +', "" ],').join("\n")
+        +"\n]\n"
+    );
+});
 
 
