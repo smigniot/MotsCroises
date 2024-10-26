@@ -190,27 +190,25 @@ Each time a candidate is tried at a slot, it can be eliminated if it creates a l
 
 Let's state the algorithm like that
 1. Start from the (parsed) template grid
-2. Find the slots containing at least one blank
+2. Find the slots - two or more consecutive non-black cells
 3. Choose one of those slots wisely
-	1. Maximize the number of known letters - fill slots near to previous
+	1. Maximize the number of known letters - fills slots near to previous
        populated slots
-    2. Minimize the number of candidates for the slot
-    3. Minimize the number of unknown letters
-    4. Maximize length - try long words early in depth search
-    5. It's a **heuristic** at this point - the goal being to avoid costly branches
-4. For the chose slot, sort candidates
+    2. Minimize the number of unknown letters
+    3. Minimize the number of candidates for the slot
+    4. It's a **heuristic** at this point - the goal being to avoid costly branches
+4. For the chosen slot, sort candidates
     1. Compute the frequency of each letter in crossing slots
     2. Add all this frequency to get a score
-    3. Basically this maximizes the chance of having candidates in crossing slots
+    3. Basically this maximizes the chance of having candidates in the crossing slots
     4. It's a **heuristic** at this point - the goal being to avoid costly branches
-    
-4. Iterate all candidates
+5. Iterate all candidates
 	1. Place the candidate in the slot, modifying the grid
 	2. Check every crossing slot containing a modified cell of the grid
 		1. If some word still can be placed at this crossing slot, skip
 		2. Else it's a dead-end, eliminate the candidate
 	3. If the candidate has not been eliminated, perform a recursion, at step 2
-	4. After recursion, restore the grid by canceling modifications of step 4.1
+	4. After recursion, restore the grid
 5. When no slot has at least one empty cell, it's a solution. Claim victory
 
 **_NOTE:_** To iterate the candidate, use the pattern tree described in the previous chapters.

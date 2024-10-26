@@ -1,6 +1,6 @@
 cabal-version:      2.4
 name:               Algorithm
-version:            0.1.0.0
+version:            1.0.0.0
 author:             Sebastien
 maintainer:         sebastien@migniot.com
 
