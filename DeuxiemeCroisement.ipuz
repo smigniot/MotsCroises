@@ -7,7 +7,7 @@
 "title": "Mots Croisés algorithmiques",
 "difficulty": "Easy",
 "empty": "0",
-"dimensions": { "width": 15, "height": 15 },
+"dimensions": { "width": 12, "height": 12 },
 "puzzle": [
 	[  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,"#", 11],
 	["#", 12,  0,"#", 13,  0,  0,  0,"#", 14, 15,  0],
