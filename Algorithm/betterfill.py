@@ -17,15 +17,24 @@ def main(args):
 # Run !
 #
 # 1. Find slots - where to place words
-# 2. pass
+# 2. Find crossing between slots
+# 3. Index the dictionary by word size, position and letter
+# 4. Compute letter frequency
+# 5. Start solver
 #
 def run(dictionary, grid, loglevel):
     slots = find_slots(grid)
-    if loglevel>1: print("Slots = %s" % repr(slots))
+    if loglevel>1: print("Enumerated %d slots" % len(slots))
+    if loglevel>2: print("Slots = %s" % repr(slots))
     constrained = constrain_slots(slots)
-    if loglevel>1: print("Constraints = %s" % repr(constrained))
+    if loglevel>2: print("Constraints = %s" % repr(constrained))
     tree = make_tree(dictionary)
+    if loglevel>1: print("Computed indexed dictionary tree")
     if loglevel>2: print("Tree = %s" % repr(tree))
+    frequencies = make_frequencies(tree)
+    if loglevel>1: print("Computed letter frequencies")
+    if loglevel>2: print("Frequencies = %s" % repr(frequencies))
+    solve(dictionary, grid, constrained, tree, frequencies)
 
 #
 # Find slots
@@ -150,6 +159,68 @@ def make_tree(dictionary):
             byletter[letter].append(word)
     return tree
 
+#
+# Compute tree frequencies
+#
+# The frequency is the percentage of occurence of a given letter amongst all other
+# (for an already given word_size and position pair)
+#
+# The frequency tree is indexed by word size, position and letter
+# Example, for input FLEXED
+# Returns a dict containing at least (0.01 is a non representative example percentage here)
+# {6:{3:{"X":0.01}}}
+#
+# Input :  list[str]
+# Output : dict{int,dict{int,dict{char,float}}}
+#
+def make_frequencies(tree):
+    frequencies = {}
+    for word_size, byposition in tree.items():
+        frequencies[word_size] = {}
+        for position, byletter in byposition.items():
+            frequencies[word_size][position] = {}
+            total = 0
+            for letter, words in byletter.items():
+                total += len(words)
+            for letter, words in byletter.items():
+                frequencies[word_size][position][letter] = float(len(words))/float(total)
+    return frequencies
+
+#
+# Start the solver.
+#
+# The algorithm is a complete walk of the solution tree.
+# With infinite time it will find all existing solutions or a proof
+# of non-solvability.
+#
+# The caller should however keep in mind that this is a
+# https://en.wikipedia.org/wiki/Constraint_satisfaction_problem
+# and we're looking for *one* solution in an *acceptable* amount of time.
+# 
+# This algorithm makes the following choices :
+# 1. While there is at least one slot with one non-filled blank '.'
+# 2. Order slots by the following heuristic
+# 2.1. The more known letters the better, i.e. "EX.UIS.TE" seems easier than "T....D"
+# 2.2. The less unknown letters the better, i.e. "EX.T" seems easier than "EXT....."
+# 2.3. The less candidates the better, i.e. "...ZZ" s easier than "E...T"
+# 2.4. The more crossings the better, i.e. choose to fail fast
+# 3. Sort the candidates by frequency score
+# 4. For each candidate, in order
+# 4.1. Apply the candidate to newgrid
+# 4.2. Non blocking : one candidate must exist for each crossing_slot in newgrid
+#      NB: This is a sort of Breadth First Search for non-solvability
+# 4.3. Recurse at 1.
+#      NB: This is a sort of Depth First Search for solutions
+#
+def solve(dictionary, grid, constrained, tree, frequencies):
+    pass
+
+def is_filled(slot, grid):
+    for (x,y) in slot:
+        cell = grid[y][x]
+        if '.' == cell:
+            return False
+    return True
 
 #
 # Command line launcher
