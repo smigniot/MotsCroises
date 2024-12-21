@@ -1,5 +1,7 @@
 # vim: set ts=4 sts=4 sw=4 expandtab :
 
+TRACE = 5
+
 #
 # Main cli func
 #
@@ -25,16 +27,16 @@ def main(args):
 def run(dictionary, grid, loglevel):
     slots = find_slots(grid)
     if loglevel>1: print("Enumerated %d slots" % len(slots))
-    if loglevel>2: print("Slots = %s" % repr(slots))
+    if loglevel>TRACE: print("Slots = %s" % repr(slots))
     constrained = constrain_slots(slots)
-    if loglevel>2: print("Constraints = %s" % repr(constrained))
+    if loglevel>TRACE: print("Constraints = %s" % repr(constrained))
     tree = make_tree(dictionary)
     if loglevel>1: print("Computed indexed dictionary tree")
-    if loglevel>2: print("Tree = %s" % repr(tree))
+    if loglevel>TRACE: print("Tree = %s" % repr(tree))
     frequencies = make_frequencies(tree)
     if loglevel>1: print("Computed letter frequencies")
-    if loglevel>2: print("Frequencies = %s" % repr(frequencies))
-    solve(dictionary, grid, constrained, tree, frequencies)
+    if loglevel>TRACE: print("Frequencies = %s" % repr(frequencies))
+    solve(dictionary, grid, constrained, tree, frequencies, loglevel)
 
 #
 # Find slots
@@ -71,10 +73,12 @@ def find_slots(grid):
             if (cell != '#') and (cell != " "):
                 slot.append( (x,y) )
             elif len(slot):
-                slots.append(slot)
+                if len(slot) >= 2:
+                    slots.append(slot)
                 slot = []
         if len(slot):
-            slots.append(slot)
+            if len(slot) >= 2:
+                slots.append(slot)
             slot = []
     for x in range(w):
         for y in range(h):
@@ -82,10 +86,12 @@ def find_slots(grid):
             if (cell != '#') and (cell != " "):
                 slot.append( (x,y) )
             elif len(slot):
-                slots.append(slot)
+                if len(slot) >= 2:
+                    slots.append(slot)
                 slot = []
         if len(slot):
-            slots.append(slot)
+            if len(slot) >= 2:
+                slots.append(slot)
             slot = []
     return slots
 
@@ -157,6 +163,12 @@ def make_tree(dictionary):
             byletter = byposition[position]
             if letter not in byletter: byletter[letter] = []
             byletter[letter].append(word)
+    for word_size in tree:
+        byposition = tree[word_size]
+        for position in byposition:
+            byletter = byposition[position]
+            for letter in byletter:
+                byletter[letter] = set(byletter[letter])
     return tree
 
 #
@@ -212,8 +224,95 @@ def make_frequencies(tree):
 # 4.3. Recurse at 1.
 #      NB: This is a sort of Depth First Search for solutions
 #
-def solve(dictionary, grid, constrained, tree, frequencies):
-    pass
+def solve(dictionary, grid, constrained, tree, frequencies, loglevel):
+    # 1. While there is at least one slot with one non-filled blank '.'
+    remaining = [constraint for constraint in constrained 
+        if not is_filled(constraint[0], grid)]
+    if not remaining: return solution(grid)
+    # 2. Order slots by the following heuristic
+    [a,i,slot_a] = [remaining[0],0,remaining[0][0]]
+    state_a = get_slot(slot_a, grid)
+    known_a = known_letters(state_a)
+    candidates_a = None
+    for j,b in enumerate(remaining[1:]):
+        slot_b = b[0]
+        state_b = get_slot(slot_b, grid)
+        known_b = known_letters(state_b)
+        # 2.1. The more known letters the better
+        # 2.2. The less unknown letters the better
+        if ( (known_b > known_a) or
+             ( (known_b == known_a) and 
+               (len(b) < len(a)) ) ):
+            [a,i,slot_a,state_a,known_a] = [b,j,slot_b,state_b,known_b]
+            candidates_a = None
+        # 2.3. The less candidates the better
+        # 2.4. The more crossings the better
+        elif (known_b == known_a) and (len(b) == len(a)):
+            candidates_a = candidates_a or candidates_for(state_a,
+                tree, dictionary)
+            candidates_b = candidates_for(state_b,
+                tree, dictionary)
+            if ( (len(candidates_b) < len(candidates_a)) or
+                 ( (len(candidates_b) == len(candidates_a)) and
+                   (len(b[1]) > len(a[1])) ) ):
+                [a,i,slot_a,state_a,known_a] = [b,j,slot_b,state_b,known_b]
+                candidates_a = candidates_b
+    candidates_a = candidates_a or candidates_for(state_a,
+                tree, dictionary)
+    # 3. Sort the candidates by frequency score
+    candidates = list(candidates_a)
+    candidates.sort(key=lambda c:score_of(c,a,frequencies))
+    # 4. For each candidate, in order
+    for candidate in candidates:
+        # 4.1. Apply the candidate to newgrid
+        for (i,(x,y)) in enumerate(slot_a):
+            grid[y][x] = candidate[i]
+        # 4.2. Non blocking for each crossing_slot in newgrid
+        blocking = False
+        for crossing in a[1]:
+            if not blocking:
+                (_, slot_b, _) = crossing
+                state_b = get_slot(slot_b, grid)
+                found = candidates_for(state_b, tree, dictionary)
+                # One candidate must exist
+                blocking = len(found) > 0 # XXX, highly inneficient
+        # 4.3. Recurse at 1.
+        maybe = solve(dictionary, grid, constrained,
+            tree, frequencies, loglevel)
+        # Restore
+        for (i,(x,y)) in enumerate(slot_a):
+            grid[y][x] = state_a[i]
+        if maybe:
+            return maybe
+
+def score_of(candidate, constraint, frequencies):
+    (slot, crossings) = constraint
+    mapping = {}
+    for crossing in crossings:
+        (position_a, _, _) = crossing
+        mapping[position_a] = crossing
+    total = 0.0
+    for position, letter in enumerate(candidate):
+        if position in mapping:
+            (_, slot_b, position_b) = mapping[position]
+            b_word_size = len(slot_b)
+            if b_word_size in frequencies:
+                byposition = frequencies[b_word_size]
+                if position_b in byposition:
+                    byletter = byposition[position_b]
+                    if letter in byletter:
+                        total += byletter[letter]
+    return total
+
+def known_letters(state):
+    count = 0
+    for char in state:
+        if char != '.':
+            count+=1
+    return count
+
+def get_slot(slot, grid):
+    return [grid[y][x] for (x,y) in slot]
 
 def is_filled(slot, grid):
     for (x,y) in slot:
@@ -221,6 +320,26 @@ def is_filled(slot, grid):
         if '.' == cell:
             return False
     return True
+
+def candidates_for(state, tree, dictionary):
+    applied = False
+    result = None
+    n = len(state)
+    for position,letter in enumerate(state):
+        if letter != '.':
+            if applied:
+                result = result & tree[n][position][letter]
+            else:
+                result = tree[n][position][letter]
+                applied = True
+    if applied:
+        return result
+    else:
+        return [w for w in dictionary if len(w) == n]
+
+def solution(grid):
+    print("\n".join(["".join(row) for row in grid]))
+    return grid
 
 #
 # Command line launcher
