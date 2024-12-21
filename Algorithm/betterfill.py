@@ -12,7 +12,7 @@ def main(args):
     dictionary = [l.strip() for l in dicttext.splitlines() if l.strip()]
     grid = [list(line) for line in gridtext.splitlines()]
     if loglevel>0: print("Dict =\n%s\n" % "\n".join(dictionary[:3]+["..."]+dictionary[-3:]))
-    if loglevel>0: print("Grid =\n%s\n" % gridtext)
+    if loglevel>0: print("Grid =\n%s\n" % gridtext.strip())
     run(dictionary, grid, loglevel)
 
 #
@@ -26,17 +26,40 @@ def main(args):
 #
 def run(dictionary, grid, loglevel):
     slots = find_slots(grid)
-    if loglevel>1: print("Enumerated %d slots" % len(slots))
+    if loglevel>2: print("Enumerated %d slots" % len(slots))
     if loglevel>TRACE: print("Slots = %s" % repr(slots))
     constrained = constrain_slots(slots)
     if loglevel>TRACE: print("Constraints = %s" % repr(constrained))
     tree = make_tree(dictionary)
-    if loglevel>1: print("Computed indexed dictionary tree")
+    if loglevel>2: print("Computed indexed dictionary tree")
     if loglevel>TRACE: print("Tree = %s" % repr(tree))
     frequencies = make_frequencies(tree)
-    if loglevel>1: print("Computed letter frequencies")
-    if loglevel>TRACE: print("Frequencies = %s" % repr(frequencies))
-    solve(dictionary, grid, constrained, tree, frequencies, loglevel)
+    if loglevel>2: print("Computed letter frequencies")
+    if loglevel>TRACE: print("Frequencies = %s\n" % repr(frequencies))
+
+    H = len(grid)
+    # If logging, print once
+    if loglevel>1:
+        print("\n".join(["".join(row) for row in grid]))
+        print("")
+    EACH = 1.0
+    last_log = [0.0]
+    # If logging, erase previous lines and reprint
+    def delete_line():
+        print("\033[1A\x1b[2K", end="")
+    def foo(grid):
+        if loglevel>1:
+            import time
+            import sys
+            now = time.time()
+            if now-last_log[0] > EACH:
+                for _ in range(H+1):
+                    delete_line()
+                print("\n".join(["".join(row) for row in grid]))
+                print("")
+                sys.stdout.flush()
+                last_log[0] = now;
+    solve(dictionary, grid, constrained, tree, frequencies, foo)
 
 #
 # Find slots
@@ -224,11 +247,12 @@ def make_frequencies(tree):
 # 4.3. Recurse at 1.
 #      NB: This is a sort of Depth First Search for solutions
 #
-def solve(dictionary, grid, constrained, tree, frequencies, loglevel):
+def solve(dictionary, grid, constrained, tree, frequencies, foo):
     # 1. While there is at least one slot with one non-filled blank '.'
     remaining = [constraint for constraint in constrained 
         if not is_filled(constraint[0], grid)]
     if not remaining: return solution(grid)
+    foo(grid)
     # 2. Order slots by the following heuristic
     [a,i,slot_a] = [remaining[0],0,remaining[0][0]]
     state_a = get_slot(slot_a, grid)
@@ -275,10 +299,13 @@ def solve(dictionary, grid, constrained, tree, frequencies, loglevel):
                 state_b = get_slot(slot_b, grid)
                 found = candidates_for(state_b, tree, dictionary)
                 # One candidate must exist
-                blocking = len(found) > 0 # XXX, highly inneficient
+                blocking = len(found) > 0
+                # XXX, highly inneficient, it's way faster
+                # to ensure that ONE exists than to actually
+                # compute them all. Refactor me.
         # 4.3. Recurse at 1.
         maybe = solve(dictionary, grid, constrained,
-            tree, frequencies, loglevel)
+            tree, frequencies, foo)
         # Restore
         for (i,(x,y)) in enumerate(slot_a):
             grid[y][x] = state_a[i]
@@ -327,10 +354,16 @@ def candidates_for(state, tree, dictionary):
     n = len(state)
     for position,letter in enumerate(state):
         if letter != '.':
+            if n not in tree: return []
+            byposition = tree[n]
+            if position not in byposition: return []
+            byletter = byposition[position]
+            if letter not in byletter: return []
+            tointersect = byletter[letter]
             if applied:
-                result = result & tree[n][position][letter]
+                result = result & tointersect
             else:
-                result = tree[n][position][letter]
+                result = tointersect
                 applied = True
     if applied:
         return result
